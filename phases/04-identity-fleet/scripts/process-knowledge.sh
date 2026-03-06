@@ -4,45 +4,187 @@
 #===============================================================================
 # Propósito: Procesar archivos de conocimiento (PDFs, Excel, Docs, Imágenes, URLs)
 # Uso: ./process-knowledge.sh --agent-name "nombre"
+# Corregido: 2026-03-06 - Auditoría Multigente
 #===============================================================================
 
-set -e
+set -euo pipefail
+
+#-------------------------------------------------------------------------------
+# CONFIGURACIÓN
+#-------------------------------------------------------------------------------
 
 # Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m'
 
-# Configuración
-OPENCLAW_DIR="$HOME/.openclaw"
-CONFIG_DIR="$OPENCLAW_DIR/config"
-DATA_DIR="$OPENCLAW_DIR/data"
-KNOWLEDGE_DIR="$OPENCLAW_DIR/knowledge"
-PENDING_FILE="$CONFIG_DIR/pending-knowledge.json"
-TEMP_DIR="$OPENCLAW_DIR/workspace/temp-upload"
+# Directorios
+readonly OPENCLAW_DIR="$HOME/.openclaw"
+readonly CONFIG_DIR="$OPENCLAW_DIR/config"
+readonly DATA_DIR="$OPENCLAW_DIR/data"
+readonly KNOWLEDGE_DIR="$OPENCLAW_DIR/knowledge"
+readonly PENDING_FILE="$CONFIG_DIR/pending-knowledge.json"
+readonly TEMP_DIR="$OPENCLAW_DIR/workspace/temp-upload"
 
-#===============================================================================
-# PARÁMETROS
-#===============================================================================
+# Estado
+CLEANUP_NEEDED=false
+PROCESSED_COUNT=0
+ERROR_COUNT=0
 
-AGENT_NAME=""
-VERBOSE=false
+#-------------------------------------------------------------------------------
+# FUNCIONES
+#-------------------------------------------------------------------------------
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
+cleanup_on_failure() {
+    local exit_code=$?
+    
+    if [[ "$CLEANUP_NEEDED" == "true" && $exit_code -ne 0 ]]; then
+        log_error "Falló el procesamiento. Limpiando..."
+        rm -f "$CONFIG_DIR/.knowledge-status.json" 2>/dev/null || true
+    fi
+    
+    exit $exit_code
+}
+
+mark_success() {
+    CLEANUP_NEEDED=false
+}
 
 usage() {
-    echo "Uso: $0 --agent-name NOMBRE [--verbose]"
+    echo "Uso: $0 [OPCIONES]"
     echo ""
     echo "Opciones:"
-    echo "  --agent-name    Nombre del agente"
-    echo "  --verbose       Mostrar más detalles"
+    echo "  --agent-name NOMBRE     Nombre del agente (requerido)"
+    echo "  --verbose               Mostrar más detalles"
+    echo "  --dry-run               Simular procesamiento"
+    echo "  --help                  Mostrar esta ayuda"
     echo ""
     echo "Este script procesa archivos de pending-knowledge.json"
     echo "creado en FASE 1."
-    exit 1
+    exit 0
 }
 
-# Parsear argumentos
+check_tool() {
+    local tool="$1"
+    local package="${2:-$1}"
+    
+    if ! command -v "$tool" &>/dev/null; then
+        log_warning "Herramienta '$tool' no encontrada"
+        log_info "Instalar con: sudo apt install $package"
+        return 1
+    fi
+    return 0
+}
+
+validate_json() {
+    local file="$1"
+    if command -v jq &>/dev/null; then
+        if ! jq . "$file" > /dev/null 2>&1; then
+            log_error "JSON inválido: $file"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+process_pdf() {
+    local input="$1"
+    local output="$2"
+    
+    if check_tool pdftotext poppler-utils; then
+        pdftotext "$input" "$output" 2>/dev/null || {
+            log_warning "No se pudo extraer texto de: $input"
+            return 1
+        }
+        return 0
+    else
+        log_warning "pdftotext no disponible, saltando PDF"
+        return 1
+    fi
+}
+
+process_excel() {
+    local input="$1"
+    local output="$2"
+    
+    if python3 -c "import openpyxl" 2>/dev/null; then
+        python3 << PYEOF
+import openpyxl
+import json
+import sys
+
+try:
+    wb = openpyxl.load_workbook('$input')
+    data = {}
+    for sheet in wb.sheetnames:
+        ws = wb[sheet]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            rows.append(list(row))
+        data[sheet] = rows
+    with open('$output', 'w') as f:
+        json.dump(data, f, indent=2, default=str)
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+        return 0
+    else
+        log_warning "openpyxl no disponible, saltando Excel"
+        return 1
+    fi
+}
+
+process_doc() {
+    local input="$1"
+    local output="$2"
+    
+    if check_tool pandoc pandoc; then
+        pandoc "$input" -o "$output" -t plain 2>/dev/null || {
+            log_warning "No se pudo convertir: $input"
+            return 1
+        }
+        return 0
+    else
+        log_warning "pandoc no disponible, saltando documento"
+        return 1
+    fi
+}
+
+process_url() {
+    local url="$1"
+    local output="$2"
+    
+    if check_tool curl curl; then
+        curl -sL "$url" -o "$output" 2>/dev/null || {
+            log_warning "No se pudo descargar: $url"
+            return 1
+        }
+        return 0
+    else
+        log_warning "curl no disponible, saltando URL"
+        return 1
+    fi
+}
+
+#-------------------------------------------------------------------------------
+# PARÁMETROS
+#-------------------------------------------------------------------------------
+
+# Trap para cleanup
+trap cleanup_on_failure EXIT ERR
+
+AGENT_NAME=""
+VERBOSE=false
+DRY_RUN=false
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --agent-name)
@@ -53,11 +195,15 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         -h|--help)
             usage
             ;;
         *)
-            echo -e "${RED}Parámetro desconocido: $1${NC}"
+            log_error "Parámetro desconocido: $1"
             usage
             ;;
     esac
@@ -65,12 +211,15 @@ done
 
 # Validar parámetros
 if [[ -z "$AGENT_NAME" ]]; then
-    echo -e "${RED}ERROR: --agent-name es obligatorio${NC}"
+    log_error "--agent-name es obligatorio"
     usage
 fi
 
+# Hacer variables readonly
+readonly AGENT_NAME VERBOSE DRY_RUN
+
 #===============================================================================
-# VERIFICAR SKILLS
+# ENCABEZADO
 #===============================================================================
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -78,275 +227,293 @@ echo -e "${BLUE}║         FASE 4: IDENTITY FLEET - Process Knowledge          
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo -e "${YELLOW}${BOLD}[MODO DRY-RUN]${NC} Solo simulación"
+    echo ""
+fi
+
+#===============================================================================
+# VALIDAR PREREQUISITOS
+#===============================================================================
+
+CLEANUP_NEEDED=true
+
+log_info "Verificando prerequisitos..."
+
 # Verificar que existe skills
 if [[ ! -f "$CONFIG_DIR/.skills-status.json" ]]; then
-    echo -e "${RED}ERROR: Skills no configurados. Ejecutar primero ./setup-skills.sh${NC}"
+    log_error "Skills no configurados"
+    log_warning "Ejecutar primero: ./setup-skills.sh"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Skills verificados${NC}"
+log_success "Skills verificados"
 
 #===============================================================================
 # VERIFICAR ARCHIVOS PENDIENTES
 #===============================================================================
 
-echo -e "${YELLOW}[1/6] Verificando archivos de conocimiento...${NC}"
+log_info "[1/6] Verificando archivos de conocimiento..."
 
 # Crear directorios
-mkdir -p "$KNOWLEDGE_DIR"/{pdf,excel,docs,images,urls,processed,embeddings}
-mkdir -p "$TEMP_DIR"
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía directorios de conocimiento"
+else
+    mkdir -p "$KNOWLEDGE_DIR"/{pdf,excel,docs,images,urls,processed,embeddings}
+    mkdir -p "$TEMP_DIR"
+fi
 
 if [[ ! -f "$PENDING_FILE" ]]; then
-    echo -e "${YELLOW}   ⚠ No hay archivos pendientes de procesamiento${NC}"
-    echo -e "${BLUE}   El archivo pending-knowledge.json se creará en FASE 1${NC}"
-    echo ""
-    echo -e "${GREEN}✓ Estructura de directorios creada${NC}"
+    log_warning "No hay archivos pendientes de procesamiento"
+    log_info "Creando archivo pending-knowledge.json vacío..."
     
-    # Crear archivo vacío
-    cat > "$PENDING_FILE" << 'EOF'
+    if [[ "$DRY_RUN" != "true" ]]; then
+        cat > "$PENDING_FILE" << EOF
 {
-  "upload_date": null,
-  "agent_name": null,
-  "files": [],
-  "urls": []
+  "agent_name": "${AGENT_NAME}",
+  "created_at": "$(date -Iseconds)",
+  "files": []
 }
 EOF
+    fi
     
-    # Guardar estado
-    cat > "$CONFIG_DIR/.knowledge-status.json" << EOF
+    # Crear estado de finalización
+    if [[ "$DRY_RUN" != "true" ]]; then
+        cat > "$CONFIG_DIR/.knowledge-status.json" << EOF
 {
   "status": "skipped",
-  "reason": "no_pending_files",
   "agent_name": "${AGENT_NAME}",
-  "created_at": "$(date -Iseconds)"
+  "reason": "No hay archivos pendientes",
+  "processed_count": 0,
+  "error_count": 0,
+  "created_at": "$(date -Iseconds)",
+  "version": "1.0.0"
 }
 EOF
+    fi
     
-    echo ""
-    echo -e "${YELLOW}Continuando sin archivos de conocimiento...${NC}"
-    echo -e "${YELLOW}Siguiente paso:${NC} ./setup-email.sh --agent-name '${AGENT_NAME}'"
+    mark_success
+    log_success "Procesamiento saltado (no hay archivos)"
     exit 0
 fi
 
-# Contar archivos pendientes
-PENDING_FILES=$(grep -c '"status": "pending"' "$PENDING_FILE" 2>/dev/null || echo "0")
-PENDING_URLS=$(grep -c '"status": "pending"' "$PENDING_FILE" | tail -1 || echo "0")
+log_success "Archivo de pendientes encontrado"
 
-echo -e "${GREEN}   ✓ Archivos pendientes: ${PENDING_FILES}${NC}"
-echo -e "${GREEN}   ✓ URLs pendientes: ${PENDING_URLS}${NC}"
+#===============================================================================
+# LEER ARCHIVOS PENDIENTES
+#===============================================================================
+
+log_info "[2/6] Leyendo lista de archivos..."
+
+PENDINGS=""
+if command -v jq &>/dev/null; then
+    PENDINGS=$(jq -r '.files[] | @base64' "$PENDING_FILE" 2>/dev/null || true)
+else
+    log_warning "jq no disponible, usando método alternativo"
+    PENDINGS=$(grep -o '"files"[^]]*' "$PENDING_FILE" 2>/dev/null || true)
+fi
+
+if [[ -z "$PENDINGS" ]]; then
+    log_warning "No hay archivos en la lista"
+    
+    if [[ "$DRY_RUN" != "true" ]]; then
+        cat > "$CONFIG_DIR/.knowledge-status.json" << EOF
+{
+  "status": "skipped",
+  "agent_name": "${AGENT_NAME}",
+  "reason": "Lista vacía",
+  "processed_count": 0,
+  "error_count": 0,
+  "created_at": "$(date -Iseconds)"
+}
+EOF
+    fi
+    
+    mark_success
+    exit 0
+fi
+
+FILE_COUNT=$(echo "$PENDINGS" | wc -l)
+log_info "Encontrados $FILE_COUNT archivo(s) para procesar"
+
+#===============================================================================
+# VERIFICAR HERRAMIENTAS
+#===============================================================================
+
+log_info "[3/6] Verificando herramientas..."
+
+TOOLS_OK=true
+
+if ! check_tool pdftotext poppler-utils; then
+    TOOLS_OK=false
+fi
+
+if ! python3 -c "import openpyxl" 2>/dev/null; then
+    log_warning "openpyxl no disponible (pip install openpyxl)"
+fi
+
+if ! check_tool pandoc pandoc; then
+    TOOLS_OK=false
+fi
+
+if ! check_tool curl curl; then
+    TOOLS_OK=false
+fi
+
+if [[ "$TOOLS_OK" == "false" ]]; then
+    log_warning "Algunas herramientas no están disponibles"
+    log_info "Algunos archivos pueden no ser procesados"
+fi
 
 #===============================================================================
 # PROCESAR ARCHIVOS
 #===============================================================================
 
-echo -e "${YELLOW}[2/6] Procesando archivos PDF...${NC}"
+log_info "[4/6] Procesando archivos..."
 
-# Procesar PDFs
-process_pdf() {
-    local input_file="$1"
-    local output_file="$2"
+INDEX_ENTRIES=()
+
+while IFS= read -r encoded; do
+    FILE_INFO=$(echo "$encoded" | base64 -d 2>/dev/null || echo "{}")
     
-    if command -v pdftotext &> /dev/null; then
-        pdftotext "$input_file" "$output_file" 2>/dev/null
-        return $?
-    else
-        echo -e "${YELLOW}   ⚠ pdftotext no instalado, instalando...${NC}"
-        sudo apt-get install -y poppler-utils > /dev/null 2>&1
-        pdftotext "$input_file" "$output_file" 2>/dev/null
-        return $?
+    FILE_PATH=$(echo "$FILE_INFO" | jq -r '.path // empty' 2>/dev/null || true)
+    FILE_TYPE=$(echo "$FILE_INFO" | jq -r '.type // empty' 2>/dev/null || true)
+    FILE_NAME=$(basename "$FILE_PATH" 2>/dev/null || echo "unknown")
+    
+    if [[ -z "$FILE_PATH" ]] || [[ ! -f "$FILE_PATH" ]]; then
+        log_warning "Archivo no encontrado: $FILE_PATH"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        continue
     fi
-}
-
-# Buscar y procesar PDFs pendientes
-if [[ -d "$TEMP_DIR" ]]; then
-    for pdf_file in "$TEMP_DIR"/*.pdf 2>/dev/null; do
-        if [[ -f "$pdf_file" ]]; then
-            filename=$(basename "$pdf_file" .pdf)
-            output="$KNOWLEDGE_DIR/pdf/${filename}.txt"
-            
-            if process_pdf "$pdf_file" "$output"; then
-                echo -e "${GREEN}   ✓ Procesado: ${filename}.pdf${NC}"
-            else
-                echo -e "${RED}   ✗ Error procesando: ${filename}.pdf${NC}"
+    
+    [[ "$VERBOSE" == "true" ]] && log_info "Procesando: $FILE_NAME ($FILE_TYPE)"
+    
+    OUTPUT_PATH=""
+    PROCESS_OK=false
+    
+    case "$FILE_TYPE" in
+        pdf)
+            OUTPUT_PATH="$KNOWLEDGE_DIR/processed/${FILE_NAME%.pdf}.txt"
+            if process_pdf "$FILE_PATH" "$OUTPUT_PATH"; then
+                PROCESS_OK=true
             fi
+            ;;
+        excel|xlsx|xls)
+            OUTPUT_PATH="$KNOWLEDGE_DIR/processed/${FILE_NAME%.xlsx}.json"
+            if process_excel "$FILE_PATH" "$OUTPUT_PATH"; then
+                PROCESS_OK=true
+            fi
+            ;;
+        doc|docx)
+            OUTPUT_PATH="$KNOWLEDGE_DIR/processed/${FILE_NAME%.docx}.txt"
+            if process_doc "$FILE_PATH" "$OUTPUT_PATH"; then
+                PROCESS_OK=true
+            fi
+            ;;
+        url)
+            OUTPUT_PATH="$KNOWLEDGE_DIR/urls/${FILE_NAME}.html"
+            if process_url "$FILE_PATH" "$OUTPUT_PATH"; then
+                PROCESS_OK=true
+            fi
+            ;;
+        *)
+            log_warning "Tipo no soportado: $FILE_TYPE"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            continue
+            ;;
+    esac
+    
+    if [[ "$PROCESS_OK" == "true" ]]; then
+        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+        INDEX_ENTRIES+=("{\"file\":\"$FILE_NAME\",\"type\":\"$FILE_TYPE\",\"output\":\"$OUTPUT_PATH\",\"processed_at\":\"$(date -Iseconds)\"}")
+        log_success "Procesado: $FILE_NAME"
+    else
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        log_error "Error procesando: $FILE_NAME"
+    fi
+    
+done <<< "$PENDINGS"
+
+#===============================================================================
+# CREAR ÍNDICE
+#===============================================================================
+
+log_info "[5/6] Creando índice de conocimiento..."
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $KNOWLEDGE_DIR/index.json"
+else
+    # Crear índice JSON
+    echo "{" > "$KNOWLEDGE_DIR/index.json"
+    echo "  \"agent_name\": \"${AGENT_NAME}\"," >> "$KNOWLEDGE_DIR/index.json"
+    echo "  \"created_at\": \"$(date -Iseconds)\"," >> "$KNOWLEDGE_DIR/index.json"
+    echo "  \"total_files\": ${FILE_COUNT}," >> "$KNOWLEDGE_DIR/index.json"
+    echo "  \"processed\": ${PROCESSED_COUNT}," >> "$KNOWLEDGE_DIR/index.json"
+    echo "  \"errors\": ${ERROR_COUNT}," >> "$KNOWLEDGE_DIR/index.json"
+    echo "  \"files\": [" >> "$KNOWLEDGE_DIR/index.json"
+    
+    for i in "${!INDEX_ENTRIES[@]}"; do
+        if [[ $i -lt $((${#INDEX_ENTRIES[@]} - 1)) ]]; then
+            echo "    ${INDEX_ENTRIES[$i]}," >> "$KNOWLEDGE_DIR/index.json"
+        else
+            echo "    ${INDEX_ENTRIES[$i]}" >> "$KNOWLEDGE_DIR/index.json"
         fi
     done
-fi
-
-echo -e "${YELLOW}[3/6] Procesando archivos Excel...${NC}"
-
-# Procesar Excel (requiere Python + openpyxl)
-process_excel() {
-    local input_file="$1"
-    local output_file="$2"
     
-    python3 << 'PYEOF' 2>/dev/null
-import sys
-import json
-try:
-    import openpyxl
-    wb = openpyxl.load_workbook(sys.argv[1])
-    data = []
-    for sheet in wb.worksheets:
-        for row in sheet.iter_rows(values_only=True):
-            if any(cell is not None for cell in row):
-                data.append(list(row))
-    with open(sys.argv[2], 'w') as f:
-        json.dump(data, f, indent=2)
-    print("OK")
-except Exception as e:
-    print(f"ERROR: {e}")
-PYEOF
-}
-
-for xlsx_file in "$TEMP_DIR"/*.xlsx "$TEMP_DIR"/*.xls 2>/dev/null; do
-    if [[ -f "$xlsx_file" ]]; then
-        filename=$(basename "$xlsx_file" .xlsx | sed 's/.xls$//')
-        output="$KNOWLEDGE_DIR/excel/${filename}.json"
-        
-        if python3 -c "import openpyxl" 2>/dev/null; then
-            python3 -c "
-import openpyxl, json, sys
-wb = openpyxl.load_workbook('$xlsx_file')
-data = []
-for sheet in wb.worksheets:
-    for row in sheet.iter_rows(values_only=True):
-        if any(cell is not None for cell in row):
-            data.append(list(row))
-with open('$output', 'w') as f:
-    json.dump(data, f, indent=2)
-" 2>/dev/null && echo -e "${GREEN}   ✓ Procesado: ${filename}${NC}" || echo -e "${RED}   ✗ Error: ${filename}${NC}"
-        else
-            echo -e "${YELLOW}   ⚠ openpyxl no instalado, instalando...${NC}"
-            pip3 install openpyxl -q 2>/dev/null
-            python3 -c "
-import openpyxl, json, sys
-wb = openpyxl.load_workbook('$xlsx_file')
-data = []
-for sheet in wb.worksheets:
-    for row in sheet.iter_rows(values_only=True):
-        if any(cell is not None for cell in row):
-            data.append(list(row))
-with open('$output', 'w') as f:
-    json.dump(data, f, indent=2)
-" 2>/dev/null && echo -e "${GREEN}   ✓ Procesado: ${filename}${NC}" || echo -e "${RED}   ✗ Error: ${filename}${NC}"
-        fi
-    fi
-done
-
-echo -e "${YELLOW}[4/6] Procesando documentos...${NC}"
-
-# Procesar Docs (requiere pandoc)
-for doc_file in "$TEMP_DIR"/*.doc "$TEMP_DIR"/*.docx 2>/dev/null; do
-    if [[ -f "$doc_file" ]]; then
-        filename=$(basename "$doc_file" .doc | sed 's/.docx$//')
-        output="$KNOWLEDGE_DIR/docs/${filename}.md"
-        
-        if command -v pandoc &> /dev/null; then
-            pandoc "$doc_file" -o "$output" 2>/dev/null && \
-                echo -e "${GREEN}   ✓ Procesado: ${filename}${NC}" || \
-                echo -e "${RED}   ✗ Error: ${filename}${NC}"
-        else
-            echo -e "${YELLOW}   ⚠ pandoc no instalado, omitiendo: ${filename}${NC}"
-        fi
-    fi
-done
-
-echo -e "${YELLOW}[5/6] Procesando imágenes...${NC}"
-
-# Procesar imágenes (requiere vision API o tesseract)
-for img_file in "$TEMP_DIR"/*.png "$TEMP_DIR"/*.jpg "$TEMP_DIR"/*.jpeg "$TEMP_DIR"/*.gif 2>/dev/null; do
-    if [[ -f "$img_file" ]]; then
-        filename=$(basename "$img_file")
-        # Por ahora solo copiamos, el procesamiento se hace con vision API
-        cp "$img_file" "$KNOWLEDGE_DIR/images/"
-        echo -e "${GREEN}   ✓ Imagen guardada: ${filename}${NC}"
-    fi
-done
-
-echo -e "${YELLOW}[6/6] Procesando URLs...${NC}"
-
-# Procesar URLs (requiere curl/wget)
-if command -v curl &> /dev/null; then
-    # Leer URLs del archivo pending
-    if [[ -f "$PENDING_FILE" ]]; then
-        urls=$(grep -o '"url"[^,]*' "$PENDING_FILE" | cut -d'"' -f4 2>/dev/null || true)
-        
-        for url in $urls; do
-            if [[ -n "$url" ]]; then
-                filename=$(echo "$url" | md5sum | cut -d' ' -f1)
-                output="$KNOWLEDGE_DIR/urls/${filename}.html"
-                
-                if curl -sL "$url" -o "$output" 2>/dev/null; then
-                    echo -e "${GREEN}   ✓ URL procesada: ${url}${NC}"
-                else
-                    echo -e "${RED}   ✗ Error procesando URL: ${url}${NC}"
-                fi
-            fi
-        done
-    fi
+    echo "  ]" >> "$KNOWLEDGE_DIR/index.json"
+    echo "}" >> "$KNOWLEDGE_DIR/index.json"
+    
+    validate_json "$KNOWLEDGE_DIR/index.json" || true
+    log_success "Índice creado con ${PROCESSED_COUNT} archivo(s)"
 fi
 
 #===============================================================================
-# CREAR ÍNDICE DE CONOCIMIENTO
+# GENERAR EMBEDDINGS (OPCIONAL)
 #===============================================================================
 
-echo -e "${YELLOW}Creando índice de conocimiento...${NC}"
+log_info "[6/6] Verificando embeddings..."
 
-# Contar archivos procesados
-PDF_COUNT=$(ls -1 "$KNOWLEDGE_DIR/pdf"/*.txt 2>/dev/null | wc -l || echo "0")
-EXCEL_COUNT=$(ls -1 "$KNOWLEDGE_DIR/excel"/*.json 2>/dev/null | wc -l || echo "0")
-DOCS_COUNT=$(ls -1 "$KNOWLEDGE_DIR/docs"/*.md 2>/dev/null | wc -l || echo "0")
-IMAGES_COUNT=$(ls -1 "$KNOWLEDGE_DIR/images"/* 2>/dev/null | wc -l || echo "0")
-URLS_COUNT=$(ls -1 "$KNOWLEDGE_DIR/urls"/*.html 2>/dev/null | wc -l || echo "0")
+if [[ -f "$CONFIG_DIR/embeddings.json" ]]; then
+    EMBEDDINGS_ENABLED=$(jq -r '.enabled // false' "$CONFIG_DIR/embeddings.json" 2>/dev/null || echo "false")
+    
+    if [[ "$EMBEDDINGS_ENABLED" == "true" ]]; then
+        log_info "Embeddings habilitados - procesar con Ollama"
+        log_warning "Embeddings se generan bajo demanda durante el uso"
+    else
+        log_info "Embeddings no habilitados"
+    fi
+else
+    log_info "Configuración de embeddings no encontrada"
+fi
 
-TOTAL=$((PDF_COUNT + EXCEL_COUNT + DOCS_COUNT + IMAGES_COUNT + URLS_COUNT))
+#===============================================================================
+# GUARDAR ESTADO
+#===============================================================================
 
-cat > "$KNOWLEDGE_DIR/index.json" << EOF
+if [[ "$DRY_RUN" != "true" ]]; then
+    log_info "Guardando estado..."
+    
+    STATUS="completed"
+    [[ $ERROR_COUNT -gt 0 ]] && STATUS="completed_with_errors"
+    [[ $PROCESSED_COUNT -eq 0 ]] && STATUS="skipped"
+    
+    cat > "$CONFIG_DIR/.knowledge-status.json" << EOF
 {
+  "status": "${STATUS}",
   "agent_name": "${AGENT_NAME}",
+  "total_files": ${FILE_COUNT},
+  "processed_count": ${PROCESSED_COUNT},
+  "error_count": ${ERROR_COUNT},
+  "index_file": "$KNOWLEDGE_DIR/index.json",
   "created_at": "$(date -Iseconds)",
-  "files": {
-    "pdf": ${PDF_COUNT},
-    "excel": ${EXCEL_COUNT},
-    "docs": ${DOCS_COUNT},
-    "images": ${IMAGES_COUNT},
-    "urls": ${URLS_COUNT}
-  },
-  "total": ${TOTAL},
-  "embeddings_enabled": true,
-  "embeddings_model": "nomic-embed-text"
+  "version": "1.0.0"
 }
 EOF
-
-echo -e "${GREEN}   ✓ Índice creado con ${TOTAL} archivos${NC}"
-
-#===============================================================================
-# ACTUALIZAR ESTADO
-#===============================================================================
-
-# Actualizar pending-knowledge.json
-if [[ -f "$PENDING_FILE" ]]; then
-    # Marcar todos como procesados
-    sed -i 's/"status": "pending"/"status": "processed"/g' "$PENDING_FILE"
+    
+    validate_json "$CONFIG_DIR/.knowledge-status.json" || true
 fi
 
-# Crear knowledge-status.json
-cat > "$CONFIG_DIR/.knowledge-status.json" << EOF
-{
-  "status": "completed",
-  "agent_name": "${AGENT_NAME}",
-  "files_processed": ${TOTAL},
-  "breakdown": {
-    "pdf": ${PDF_COUNT},
-    "excel": ${EXCEL_COUNT},
-    "docs": ${DOCS_COUNT},
-    "images": ${IMAGES_COUNT},
-    "urls": ${URLS_COUNT}
-  },
-  "created_at": "$(date -Iseconds)"
-}
-EOF
+mark_success
 
 #===============================================================================
 # RESUMEN
@@ -354,25 +521,24 @@ EOF
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║            KNOWLEDGE PROCESSING COMPLETADO                    ║${NC}"
+echo -e "${GREEN}║              KNOWLEDGE PROCESSING COMPLETADO                  ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}Archivos procesados:${NC}"
-echo -e "   ${GREEN}✓${NC} PDFs: ${PDF_COUNT}"
-echo -e "   ${GREEN}✓${NC} Excel: ${EXCEL_COUNT}"
-echo -e "   ${GREEN}✓${NC} Docs: ${DOCS_COUNT}"
-echo -e "   ${GREEN}✓${NC} Imágenes: ${IMAGES_COUNT}"
-echo -e "   ${GREEN}✓${NC} URLs: ${URLS_COUNT}"
-echo -e "   ${BLUE}Total:${NC} ${TOTAL}"
+echo -e "${BLUE}Archivos procesados:${NC} ${PROCESSED_COUNT}/${FILE_COUNT}"
+echo -e "${BLUE}Errores:${NC} ${ERROR_COUNT}"
 echo ""
-echo -e "${BLUE}Directorios creados:${NC}"
-echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/pdf/"
-echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/excel/"
-echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/docs/"
-echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/images/"
-echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/urls/"
+echo -e "${BLUE}Directorio de conocimiento:${NC}"
+echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/processed/"
+echo -e "   ${GREEN}✓${NC} $KNOWLEDGE_DIR/index.json"
 echo ""
-echo -e "${YELLOW}Siguiente paso:${NC} ./setup-email.sh --agent-name '${AGENT_NAME}'"
+
+if [[ $ERROR_COUNT -gt 0 ]]; then
+    echo -e "${YELLOW}Algunos archivos no pudieron ser procesados.${NC}"
+    echo -e "${YELLOW}Verificar que las herramientas necesarias estén instaladas.${NC}"
+    echo ""
+fi
+
+echo -e "${YELLOW}FASE 4 COMPLETADA${NC}"
 echo ""
 
 exit 0

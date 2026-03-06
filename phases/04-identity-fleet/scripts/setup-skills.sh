@@ -4,31 +4,71 @@
 #===============================================================================
 # Propósito: Configurar habilidades del Super Agente (39 habilidades)
 # Uso: ./setup-skills.sh --agent-name "nombre" [--business-type "tipo"]
+# Corregido: 2026-03-06 - Auditoría Multigente
 #===============================================================================
 
-set -e
+set -euo pipefail
+
+#-------------------------------------------------------------------------------
+# CONFIGURACIÓN
+#-------------------------------------------------------------------------------
 
 # Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m'
 
-# Configuración
-OPENCLAW_DIR="$HOME/.openclaw"
-CONFIG_DIR="$OPENCLAW_DIR/config"
-SECRETS_DIR="$OPENCLAW_DIR/workspace/secrets"
+# Directorios
+readonly OPENCLAW_DIR="$HOME/.openclaw"
+readonly CONFIG_DIR="$OPENCLAW_DIR/config"
+readonly SECRETS_DIR="$OPENCLAW_DIR/workspace/secrets"
 
-#===============================================================================
-# PARÁMETROS
-#===============================================================================
+# Estado
+CLEANUP_NEEDED=false
+CREATED_FILES=()
 
-AGENT_NAME=""
-BUSINESS_TYPE="generico"
+#-------------------------------------------------------------------------------
+# FUNCIONES
+#-------------------------------------------------------------------------------
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
+cleanup_on_failure() {
+    local exit_code=$?
+    
+    if [[ "$CLEANUP_NEEDED" == "true" && $exit_code -ne 0 ]]; then
+        log_error "Falló la configuración. Limpiando archivos parciales..."
+        
+        for file in "${CREATED_FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+                rm -f "$file"
+                log_warning "Removido: $file"
+            fi
+        done
+        
+        rm -f "$CONFIG_DIR/.skills-status.json" 2>/dev/null || true
+    fi
+    
+    exit $exit_code
+}
+
+mark_success() {
+    CLEANUP_NEEDED=false
+}
 
 usage() {
-    echo "Uso: $0 --agent-name NOMBRE [--business-type TIPO]"
+    echo "Uso: $0 [OPCIONES]"
+    echo ""
+    echo "Opciones:"
+    echo "  --agent-name NOMBRE     Nombre del agente (requerido)"
+    echo "  --business-type TIPO    Tipo: restaurante, hotel, tienda, servicios, generico"
+    echo "  --dry-run               Simular ejecución"
+    echo "  --help                  Mostrar esta ayuda"
     echo ""
     echo "Tipos de negocio y sus skills:"
     echo "  restaurante  → menu, reservas, pedidos, horarios, delivery"
@@ -39,10 +79,31 @@ usage() {
     echo ""
     echo "Ejemplo:"
     echo "  $0 --agent-name 'casamahana' --business-type 'restaurante'"
-    exit 1
+    exit 0
 }
 
-# Parsear argumentos
+validate_json() {
+    local file="$1"
+    if command -v jq &>/dev/null; then
+        if ! jq . "$file" > /dev/null 2>&1; then
+            log_error "JSON inválido: $file"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+#-------------------------------------------------------------------------------
+# PARÁMETROS
+#-------------------------------------------------------------------------------
+
+# Trap para cleanup
+trap cleanup_on_failure EXIT ERR
+
+AGENT_NAME=""
+BUSINESS_TYPE="generico"
+DRY_RUN=false
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --agent-name)
@@ -53,11 +114,15 @@ while [[ $# -gt 0 ]]; do
             BUSINESS_TYPE="$2"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         -h|--help)
             usage
             ;;
         *)
-            echo -e "${RED}Parámetro desconocido: $1${NC}"
+            log_error "Parámetro desconocido: $1"
             usage
             ;;
     esac
@@ -65,12 +130,25 @@ done
 
 # Validar parámetros
 if [[ -z "$AGENT_NAME" ]]; then
-    echo -e "${RED}ERROR: --agent-name es obligatorio${NC}"
+    log_error "--agent-name es obligatorio"
     usage
 fi
 
+# Normalizar business-type
+case "$BUSINESS_TYPE" in
+    restaurante|hotel|tienda|servicios|generico)
+        ;;
+    *)
+        log_warning "business-type '$BUSINESS_TYPE' no reconocido, usando 'generico'"
+        BUSINESS_TYPE="generico"
+        ;;
+esac
+
+# Hacer variables readonly
+readonly AGENT_NAME BUSINESS_TYPE DRY_RUN
+
 #===============================================================================
-# VERIFICAR FLEET
+# ENCABEZADO
 #===============================================================================
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -78,670 +156,480 @@ echo -e "${BLUE}║         FASE 4: IDENTITY FLEET - Setup Skills               
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo -e "${YELLOW}${BOLD}[MODO DRY-RUN]${NC} Solo simulación"
+    echo ""
+fi
+
+#===============================================================================
+# VALIDAR PREREQUISITOS
+#===============================================================================
+
+CLEANUP_NEEDED=true
+
+log_info "Verificando prerequisitos..."
+
 # Verificar que existe fleet
 if [[ ! -f "$CONFIG_DIR/.fleet-status.json" ]]; then
-    echo -e "${RED}ERROR: Fleet no configurado. Ejecutar primero ./setup-fleet.sh${NC}"
+    log_error "Fleet no configurado"
+    log_warning "Ejecutar primero: ./setup-fleet.sh"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Fleet verificado${NC}"
+log_success "Fleet verificado"
 
 #===============================================================================
-# HABILIDADES CORE (25) - SIEMPRE FUNCIONAN
+# HABILIDADES CORE (25)
 #===============================================================================
 
-echo -e "${YELLOW}[1/4] Configurando habilidades CORE (25)...${NC}"
+log_info "[1/4] Configurando habilidades CORE (25)..."
 
-# Cargar API keys compartidas
-RESEND_KEY=""
-PDFCO_KEY=""
-MATHPIX_KEY=""
-MUX_KEY=""
-TWILIO_KEY=""
-OXYLABS_KEY=""
-GAMMA_KEY=""
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-core.json"
+else
+    cat > "$CONFIG_DIR/skills-core.json" << 'CORE_EOF'
+{
+  "version": "2.0.0",
+  "description": "25 habilidades CORE - Siempre funcionan sin configuración",
+  "skills": {
+    "documents": {
+      "pdf_generate": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Crear documentos PDF"
+      },
+      "pdf_read": {
+        "enabled": true,
+        "limit": 1000,
+        "description": "Extraer texto de PDFs"
+      },
+      "pdf_edit": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Modificar/combinar PDFs"
+      },
+      "doc_generate": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Crear Word/Docs"
+      },
+      "excel_generate": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Crear Excel"
+      },
+      "excel_read": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Leer Excel"
+      },
+      "presentation_create": {
+        "enabled": true,
+        "limit": 50,
+        "description": "Crear presentaciones"
+      }
+    },
+    "email": {
+      "email_send": {
+        "enabled": true,
+        "limit": 3000,
+        "description": "Enviar emails con adjuntos"
+      },
+      "email_read": {
+        "enabled": true,
+        "limit": null,
+        "description": "Leer y procesar emails"
+      }
+    },
+    "video": {
+      "video_process": {
+        "enabled": true,
+        "limit": 100,
+        "description": "Analizar videos"
+      },
+      "video_edit": {
+        "enabled": true,
+        "limit": 100,
+        "description": "Editar videos"
+      }
+    },
+    "automation": {
+      "browser": {
+        "enabled": true,
+        "limit": null,
+        "description": "Navegador automatizado"
+      },
+      "scraping": {
+        "enabled": true,
+        "limit": 1000,
+        "description": "Web scraping"
+      },
+      "forms": {
+        "enabled": true,
+        "limit": null,
+        "description": "Formularios"
+      },
+      "cron": {
+        "enabled": true,
+        "limit": null,
+        "description": "Tareas programadas"
+      },
+      "webhook": {
+        "enabled": true,
+        "limit": null,
+        "description": "Webhooks"
+      }
+    },
+    "communication": {
+      "sms_send": {
+        "enabled": true,
+        "limit": 500,
+        "description": "Enviar SMS"
+      },
+      "whatsapp_send": {
+        "enabled": true,
+        "limit": null,
+        "description": "Enviar WhatsApp"
+      },
+      "telegram_send": {
+        "enabled": true,
+        "limit": null,
+        "description": "Enviar Telegram"
+      },
+      "discord_send": {
+        "enabled": true,
+        "limit": null,
+        "description": "Enviar Discord"
+      }
+    },
+    "business": {
+      "invoice_generate": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Crear facturas"
+      },
+      "report_generate": {
+        "enabled": true,
+        "limit": 5000,
+        "description": "Crear reportes"
+      },
+      "qrcode_generate": {
+        "enabled": true,
+        "limit": null,
+        "description": "Crear QR codes"
+      }
+    },
+    "productivity": {
+      "summarize": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "description": "Resumir textos"
+      },
+      "extract_data": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "description": "Extraer datos"
+      },
+      "sentiment": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "description": "Análisis de sentimiento"
+      },
+      "ocr": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "description": "OCR de imágenes"
+      }
+    }
+  }
+}
+CORE_EOF
 
-if [[ -f "$SECRETS_DIR/API_KEYS.json" ]]; then
-    RESEND_KEY=$(grep -o '"resend"[^}]*"api_key"[^,]*' "$SECRETS_DIR/API_KEYS.json" 2>/dev/null | grep -o 'api_key":"[^"]*"' | cut -d'"' -f3 || true)
-    PDFCO_KEY=$(grep -o '"pdfco"[^}]*"api_key"[^,]*' "$SECRETS_DIR/API_KEYS.json" 2>/dev/null | grep -o 'api_key":"[^"]*"' | cut -d'"' -f3 || true)
-    MATHPIX_KEY=$(grep -o '"mathpix"[^}]*"api_key"[^,]*' "$SECRETS_DIR/API_KEYS.json" 2>/dev/null | grep -o 'api_key":"[^"]*"' | cut -d'"' -f3 || true)
-    # ... más keys según sea necesario
+    if validate_json "$CONFIG_DIR/skills-core.json"; then
+        CREATED_FILES+=("$CONFIG_DIR/skills-core.json")
+        log_success "25 habilidades CORE configuradas"
+    else
+        log_error "Error creando skills-core.json"
+        exit 1
+    fi
 fi
 
-cat > "$CONFIG_DIR/skills-core.json" << 'EOF'
+#===============================================================================
+# HABILIDADES OPCIONALES (14)
+#===============================================================================
+
+log_info "[2/4] Configurando habilidades OPCIONALES (14)..."
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-optional.json"
+else
+    cat > "$CONFIG_DIR/skills-optional.json" << 'OPTIONAL_EOF'
 {
   "version": "2.0.0",
-  "description": "Habilidades CORE del Super Agente - 25 habilidades que SIEMPRE funcionan",
+  "description": "14 habilidades OPCIONALES - Requieren API keys",
   "skills": {
-    "documentos": [
-      {
-        "id": "pdf_generate",
-        "name": "Generar PDFs",
-        "description": "Crear documentos PDF desde templates o contenido",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
+    "voice": {
+      "voice_receive": {
+        "enabled": false,
+        "requires": "OPENAI_API_KEY",
+        "description": "Recibir y procesar voz"
       },
-      {
-        "id": "pdf_read",
-        "name": "Leer PDFs",
-        "description": "Extraer texto de documentos PDF",
-        "provider": "nosotros",
-        "api": "mathpix",
-        "enabled": true,
-        "monthly_limit": 1000
+      "voice_send": {
+        "enabled": false,
+        "requires": "OPENAI_API_KEY",
+        "description": "Generar voz (TTS)"
       },
-      {
-        "id": "pdf_edit",
-        "name": "Editar PDFs",
-        "description": "Modificar, combinar o dividir PDFs",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "doc_generate",
-        "name": "Generar Word/Docs",
-        "description": "Crear documentos de Word o Google Docs",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "excel_generate",
-        "name": "Generar Excel",
-        "description": "Crear hojas de cálculo Excel",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "excel_read",
-        "name": "Leer Excel",
-        "description": "Extraer datos de hojas de cálculo Excel",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "presentation_create",
-        "name": "Crear Presentaciones",
-        "description": "Crear presentaciones PowerPoint/Google Slides",
-        "provider": "nosotros",
-        "api": "gamma",
-        "enabled": true,
-        "monthly_limit": 50
+      "audio_transcribe": {
+        "enabled": false,
+        "requires": "OPENAI_API_KEY",
+        "description": "Transcribir audio"
       }
-    ],
-    "email": [
-      {
-        "id": "email_send",
-        "name": "Enviar Emails",
-        "description": "Enviar emails con adjuntos y templates HTML",
-        "provider": "nosotros",
-        "api": "resend",
-        "enabled": true,
-        "monthly_limit": 3000
+    },
+    "image": {
+      "image_generate": {
+        "enabled": false,
+        "requires": "OPENAI_API_KEY",
+        "description": "Generar imágenes (DALL-E)"
       },
-      {
-        "id": "email_read",
-        "name": "Leer Emails",
-        "description": "Leer y procesar emails recibidos",
-        "provider": "nosotros",
-        "api": "imap",
+      "image_edit": {
+        "enabled": false,
+        "requires": "OPENAI_API_KEY",
+        "description": "Editar imágenes"
+      },
+      "image_receive": {
         "enabled": true,
-        "monthly_limit": null
+        "requires": "OLLAMA_API_KEY",
+        "description": "Analizar imágenes (Vision)"
       }
-    ],
-    "video": [
-      {
-        "id": "video_process",
-        "name": "Procesar Videos",
-        "description": "Analizar y procesar videos cortos",
-        "provider": "nosotros",
-        "api": "mux",
-        "enabled": true,
-        "monthly_limit": 100
+    },
+    "media": {
+      "audio_generate": {
+        "enabled": false,
+        "requires": "SUNO_API_KEY",
+        "description": "Generar música/audio"
       },
-      {
-        "id": "video_edit",
-        "name": "Editar Videos",
-        "description": "Editar, recortar, comprimir videos",
-        "provider": "nosotros",
-        "api": "mux",
-        "enabled": true,
-        "monthly_limit": 100
+      "video_create": {
+        "enabled": false,
+        "requires": "RUNWAY_API_KEY",
+        "description": "Crear videos (AI)"
       }
-    ],
-    "automatizacion": [
-      {
-        "id": "browser",
-        "name": "Navegador Automatizado",
-        "description": "Automatizar tareas en el navegador",
-        "provider": "nosotros",
-        "api": "puppeteer",
-        "enabled": true,
-        "monthly_limit": null
+    },
+    "services": {
+      "translate": {
+        "enabled": false,
+        "requires": "DEEPL_API_KEY",
+        "description": "Traducción profesional"
       },
-      {
-        "id": "scraping",
-        "name": "Web Scraping",
-        "description": "Extraer datos de páginas web",
-        "provider": "nosotros",
-        "api": "oxylabs",
-        "enabled": true,
-        "monthly_limit": 1000
+      "location": {
+        "enabled": false,
+        "requires": "GOOGLE_MAPS_KEY",
+        "description": "Servicios de ubicación"
       },
-      {
-        "id": "forms",
-        "name": "Formularios",
-        "description": "Crear y procesar formularios",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
+      "calendar": {
+        "enabled": false,
+        "requires": "GOOGLE_OAUTH",
+        "description": "Google Calendar"
       },
-      {
-        "id": "cron",
-        "name": "Tareas Programadas",
-        "description": "Programar tareas recurrentes",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
+      "sheets": {
+        "enabled": false,
+        "requires": "GOOGLE_OAUTH",
+        "description": "Google Sheets"
       },
-      {
-        "id": "webhook",
-        "name": "Webhooks",
-        "description": "Recibir y enviar webhooks",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
+      "deep_search": {
+        "enabled": false,
+        "requires": "PERPLEXITY_API_KEY",
+        "description": "Búsqueda profunda"
       }
-    ],
-    "comunicacion": [
-      {
-        "id": "sms_send",
-        "name": "Enviar SMS",
-        "description": "Enviar mensajes SMS",
-        "provider": "nosotros",
-        "api": "twilio",
+    },
+    "code": {
+      "code_execute": {
         "enabled": true,
-        "monthly_limit": 500
-      },
-      {
-        "id": "whatsapp_send",
-        "name": "Enviar WhatsApp",
-        "description": "Enviar mensajes por WhatsApp",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
-      },
-      {
-        "id": "telegram_send",
-        "name": "Enviar Telegram",
-        "description": "Enviar mensajes por Telegram",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
-      },
-      {
-        "id": "discord_send",
-        "name": "Enviar Discord",
-        "description": "Enviar mensajes por Discord",
-        "provider": "sistema",
-        "api": "openclaw",
-        "enabled": true,
-        "monthly_limit": null
+        "requires": null,
+        "description": "Ejecutar código"
       }
-    ],
-    "negocio": [
-      {
-        "id": "invoice_generate",
-        "name": "Generar Facturas",
-        "description": "Crear facturas en PDF",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "report_generate",
-        "name": "Generar Reportes",
-        "description": "Crear reportes y dashboards",
-        "provider": "nosotros",
-        "api": "pdfco",
-        "enabled": true,
-        "monthly_limit": 5000
-      },
-      {
-        "id": "qrcode_generate",
-        "name": "Generar QR Codes",
-        "description": "Crear códigos QR",
-        "provider": "nosotros",
-        "api": "externa",
-        "enabled": true,
-        "monthly_limit": null
-      }
-    ],
-    "productividad": [
-      {
-        "id": "summarize",
-        "name": "Resumir Textos",
-        "description": "Crear resúmenes de textos largos",
-        "provider": "cliente",
-        "api": "ollama",
-        "enabled": true,
-        "monthly_limit": null
-      },
-      {
-        "id": "extract_data",
-        "name": "Extraer Datos",
-        "description": "Extraer datos estructurados de textos",
-        "provider": "cliente",
-        "api": "ollama",
-        "enabled": true,
-        "monthly_limit": null
-      },
-      {
-        "id": "sentiment",
-        "name": "Análisis de Sentimiento",
-        "description": "Analizar el sentimiento de textos",
-        "provider": "cliente",
-        "api": "ollama",
-        "enabled": true,
-        "monthly_limit": null
-      },
-      {
-        "id": "ocr",
-        "name": "OCR de Imágenes",
-        "description": "Extraer texto de imágenes",
-        "provider": "cliente",
-        "api": "ollama-vision",
-        "enabled": true,
-        "monthly_limit": null
-      }
-    ]
-  },
-  "total_core": 25,
-  "apis_compartidas": {
-    "resend": { "limite": 3000, "costo": "$10/mes" },
-    "pdfco": { "limite": 5000, "costo": "$15/mes" },
-    "mathpix": { "limite": 1000, "costo": "$10/mes" },
-    "mux": { "limite": 100, "costo": "$20/mes" },
-    "twilio": { "limite": 500, "costo": "$10/mes" },
-    "oxylabs": { "limite": 1000, "costo": "$30/mes" },
-    "gamma": { "limite": 50, "costo": "$10/mes" },
-    "total": { "costo": "$105/mes" }
-  }
-}
-EOF
-
-echo -e "${GREEN}   ✓ 25 habilidades CORE configuradas${NC}"
-
-#===============================================================================
-# HABILIDADES OPCIONALES (14) - REQUIEREN API KEY
-#===============================================================================
-
-echo -e "${YELLOW}[2/4] Configurando habilidades OPCIONALES (14)...${NC}"
-
-cat > "$CONFIG_DIR/skills-optional.json" << 'EOF'
-{
-  "version": "2.0.0",
-  "description": "Habilidades OPCIONALES - Requieren API key del cliente",
-  "skills": [
-    {
-      "id": "voice_receive",
-      "name": "Recibir Voz",
-      "description": "Transcribir mensajes de voz",
-      "required_key": "OPENAI_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "voice_send",
-      "name": "Enviar Voz",
-      "description": "Generar mensajes de voz (TTS)",
-      "required_key": "OPENAI_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "audio_transcribe",
-      "name": "Transcribir Audio",
-      "description": "Transcribir archivos de audio",
-      "required_key": "OPENAI_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "image_generate",
-      "name": "Generar Imágenes",
-      "description": "Crear imágenes con AI (DALL-E)",
-      "required_key": "OPENAI_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "image_edit",
-      "name": "Editar Imágenes",
-      "description": "Editar imágenes con AI",
-      "required_key": "OPENAI_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "audio_generate",
-      "name": "Generar Música",
-      "description": "Crear música con AI",
-      "required_key": "SUNO_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "video_create",
-      "name": "Crear Videos",
-      "description": "Crear videos con AI",
-      "required_key": "RUNWAY_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "translate",
-      "name": "Traducción",
-      "description": "Traducir textos a otros idiomas",
-      "required_key": "DEEPL_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "location",
-      "name": "Ubicación/Maps",
-      "description": "Búsquedas de ubicación y mapas",
-      "required_key": "GOOGLE_MAPS_KEY",
-      "enabled": false
-    },
-    {
-      "id": "calendar",
-      "name": "Google Calendar",
-      "description": "Gestionar calendario de Google",
-      "required_key": "GOOGLE_OAUTH",
-      "enabled": false
-    },
-    {
-      "id": "sheets",
-      "name": "Google Sheets",
-      "description": "Gestionar hojas de cálculo de Google",
-      "required_key": "GOOGLE_OAUTH",
-      "enabled": false
-    },
-    {
-      "id": "deep_search",
-      "name": "Búsqueda Profunda",
-      "description": "Búsquedas web avanzadas",
-      "required_key": "PERPLEXITY_API_KEY",
-      "enabled": false
-    },
-    {
-      "id": "code_execute",
-      "name": "Ejecutar Código",
-      "description": "Ejecutar código en sandbox",
-      "required_key": "NONE",
-      "enabled": true
-    },
-    {
-      "id": "image_receive",
-      "name": "Analizar Imágenes",
-      "description": "Analizar y describir imágenes",
-      "required_key": "OLLAMA_API_KEY",
-      "enabled": true
     }
-  ],
-  "total_optional": 14
+  }
 }
-EOF
+OPTIONAL_EOF
 
-echo -e "${GREEN}   ✓ 14 habilidades OPCIONALES configuradas${NC}"
-
-#===============================================================================
-# SKILLS BUNDLE POR TIPO DE NEGOCIO
-#===============================================================================
-
-echo -e "${YELLOW}[3/4] Configurando Skills Bundle para: ${BUSINESS_TYPE}...${NC}"
-
-case "$BUSINESS_TYPE" in
-    restaurante)
-        BUNDLE='{
-  "bundle": "restaurante",
-  "skills": [
-    "menu_parse",
-    "reservations",
-    "orders",
-    "hours",
-    "delivery",
-    "faq",
-    "contact"
-  ],
-  "custom_prompts": {
-    "menu_parse": "Puedo leer el menú y responder preguntas sobre platos, precios y recomendaciones.",
-    "reservations": "Puedo gestionar reservaciones para el restaurante.",
-    "orders": "Puedo tomar pedidos y enviarlos a cocina.",
-    "delivery": "Puedo gestionar órdenes de delivery."
-  }
-}'
-        ;;
-    hotel)
-        BUNDLE='{
-  "bundle": "hotel",
-  "skills": [
-    "reservations",
-    "availability",
-    "rooms",
-    "faq",
-    "contact",
-    "hours"
-  ],
-  "custom_prompts": {
-    "reservations": "Puedo gestionar reservaciones de habitaciones.",
-    "availability": "Puedo consultar disponibilidad en tiempo real.",
-    "rooms": "Puedo describir habitaciones y servicios del hotel."
-  }
-}'
-        ;;
-    tienda)
-        BUNDLE='{
-  "bundle": "tienda",
-  "skills": [
-    "inventory",
-    "products",
-    "orders",
-    "payments",
-    "faq",
-    "contact"
-  ],
-  "custom_prompts": {
-    "inventory": "Puedo consultar el inventario de productos.",
-    "products": "Puedo buscar y recomendar productos.",
-    "orders": "Puedo gestionar pedidos y su seguimiento."
-  }
-}'
-        ;;
-    servicios)
-        BUNDLE='{
-  "bundle": "servicios",
-  "skills": [
-    "appointments",
-    "calendar",
-    "reminders",
-    "followup",
-    "faq",
-    "contact"
-  ],
-  "custom_prompts": {
-    "appointments": "Puedo gestionar citas y agendarlas.",
-    "calendar": "Puedo consultar y modificar el calendario.",
-    "reminders": "Puedo enviar recordatorios de citas."
-  }
-}'
-        ;;
-    *)
-        BUNDLE='{
-  "bundle": "generico",
-  "skills": [
-    "faq",
-    "contact",
-    "hours",
-    "location",
-    "general"
-  ],
-  "custom_prompts": {
-    "faq": "Puedo responder preguntas frecuentes.",
-    "contact": "Puedo proporcionar información de contacto.",
-    "hours": "Puedo informar sobre horarios de atención."
-  }
-}'
-        ;;
-esac
-
-echo "$BUNDLE" > "$CONFIG_DIR/skills-bundle.json"
-
-echo -e "${GREEN}   ✓ Skills Bundle configurado${NC}"
+    if validate_json "$CONFIG_DIR/skills-optional.json"; then
+        CREATED_FILES+=("$CONFIG_DIR/skills-optional.json")
+        log_success "14 habilidades OPCIONALES configuradas"
+    else
+        log_error "Error creando skills-optional.json"
+        exit 1
+    fi
+fi
 
 #===============================================================================
-# SKILLS.MD FINAL
+# SKILLS BUNDLE (por tipo de negocio)
 #===============================================================================
 
-echo -e "${YELLOW}[4/4] Generando SKILLS.md...${NC}"
+log_info "[3/4] Configurando Skills Bundle para '$BUSINESS_TYPE'..."
 
-cat > "$CONFIG_DIR/SKILLS.md" << 'SKILLSEOF'
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-bundle.json"
+else
+    # Bundle según tipo de negocio
+    case "$BUSINESS_TYPE" in
+        restaurante)
+            BUNDLE_DESC="Habilidades para restaurantes"
+            BUNDLE='{"bundle":"restaurante","skills":["menu","reservas","pedidos","horarios","delivery","faq"],"context":{"menu":"Puedo consultar el menú y precios.","reservas":"Puedo gestionar reservaciones.","pedidos":"Puedo tomar pedidos para llevar o delivery.","horarios":"Puedo informar horarios de atención.","delivery":"Puedo coordinar entregas a domicilio."}}'
+            ;;
+        hotel)
+            BUNDLE_DESC="Habilidades para hoteles"
+            BUNDLE='{"bundle":"hotel","skills":["reservas","disponibilidad","habitaciones","faq","checkin","amenidades"],"context":{"reservas":"Puedo gestionar reservaciones de habitaciones.","disponibilidad":"Puedo consultar disponibilidad en tiempo real.","habitaciones":"Puedo mostrar tipos de habitaciones y precios.","faq":"Puedo responder preguntas frecuentes del hotel.","checkin":"Puedo gestionar check-in y check-out.","amenidades":"Puedo informar sobre servicios del hotel."}}'
+            ;;
+        tienda)
+            BUNDLE_DESC="Habilidades para tiendas"
+            BUNDLE='{"bundle":"tienda","skills":["inventario","productos","pedidos","pagos","faq","envios"],"context":{"inventario":"Puedo consultar disponibilidad de productos.","productos":"Puedo mostrar catálogo y precios.","pedidos":"Puedo procesar pedidos.","pagos":"Puedo informar métodos de pago.","faq":"Puedo responder preguntas frecuentes.","envios":"Puedo coordinar envíos."}}'
+            ;;
+        servicios)
+            BUNDLE_DESC="Habilidades para servicios"
+            BUNDLE='{"bundle":"servicios","skills":["citas","calendario","reminders","seguimiento","faq","pagos"],"context":{"citas":"Puedo agendar y gestionar citas.","calendario":"Puedo mostrar disponibilidad.","reminders":"Puedo enviar recordatorios.","seguimiento":"Puedo dar seguimiento a clientes.","faq":"Puedo responder preguntas frecuentes.","pagos":"Puedo informar sobre pagos."}}'
+            ;;
+        *)
+            BUNDLE_DESC="Habilidades genéricas"
+            BUNDLE='{"bundle":"generico","skills":["faq","contacto","horarios","info","ayuda"],"context":{"faq":"Puedo responder preguntas frecuentes.","contacto":"Puedo proporcionar información de contacto.","horarios":"Puedo informar horarios de atención.","info":"Puedo dar información general.","ayuda":"Puedo ayudar con consultas diversas."}}'
+            ;;
+    esac
+
+    echo "$BUNDLE" > "$CONFIG_DIR/skills-bundle.json"
+    
+    if validate_json "$CONFIG_DIR/skills-bundle.json"; then
+        CREATED_FILES+=("$CONFIG_DIR/skills-bundle.json")
+        log_success "Skills Bundle: $BUNDLE_DESC"
+    else
+        log_error "Error creando skills-bundle.json"
+        exit 1
+    fi
+fi
+
+#===============================================================================
+# SKILLS.MD
+#===============================================================================
+
+log_info "[4/4] Generando SKILLS.md..."
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/SKILLS.md"
+else
+    cat > "$CONFIG_DIR/SKILLS.md" << SKILLSEOF
 # SKILLS - Habilidades del Super Agente
 
-**Agente:** AGENT_NAME_PLACEHOLDER
-**Tipo de negocio:** BUSINESS_TYPE_PLACEHOLDER
+**Agente:** ${AGENT_NAME}
+**Tipo de negocio:** ${BUSINESS_TYPE}
 **Total habilidades:** 39 (25 CORE + 14 OPCIONALES)
-**Actualizado:** DATE_PLACEHOLDER
+**Actualizado:** $(date -Iseconds)
 
 ---
 
 ## Habilidades CORE (25) - Siempre funcionan
 
-Estas habilidades están disponibles SIEMPRE, sin configuración adicional del cliente.
+Estas habilidades están disponibles SIEMPRE, sin configuración adicional.
 
 ### Documentos (7)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| pdf_generate | Crear documentos PDF | 5,000 |
-| pdf_read | Extraer texto de PDFs | 1,000 |
-| pdf_edit | Modificar/combinar PDFs | 5,000 |
-| doc_generate | Crear Word/Docs | 5,000 |
-| excel_generate | Crear Excel | 5,000 |
-| excel_read | Leer Excel | 5,000 |
-| presentation_create | Crear presentaciones | 50 |
+- pdf_generate: Crear documentos PDF
+- pdf_read: Extraer texto de PDFs
+- pdf_edit: Modificar/combinar PDFs
+- doc_generate: Crear Word/Docs
+- excel_generate: Crear Excel
+- excel_read: Leer Excel
+- presentation_create: Crear presentaciones
 
 ### Email (2)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| email_send | Enviar emails con adjuntos | 3,000 |
-| email_read | Leer y procesar emails | Ilimitado |
+- email_send: Enviar emails con adjuntos
+- email_read: Leer y procesar emails
 
 ### Video (2)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| video_process | Analizar videos | 100 |
-| video_edit | Editar videos | 100 |
+- video_process: Analizar videos
+- video_edit: Editar videos
 
 ### Automatización (5)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| browser | Navegador automatizado | Ilimitado |
-| scraping | Web scraping | 1,000 |
-| forms | Formularios | Ilimitado |
-| cron | Tareas programadas | Ilimitado |
-| webhook | Webhooks | Ilimitado |
+- browser: Navegador automatizado
+- scraping: Web scraping
+- forms: Formularios
+- cron: Tareas programadas
+- webhook: Webhooks
 
 ### Comunicación (4)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| sms_send | Enviar SMS | 500 |
-| whatsapp_send | Enviar WhatsApp | Ilimitado |
-| telegram_send | Enviar Telegram | Ilimitado |
-| discord_send | Enviar Discord | Ilimitado |
+- sms_send: Enviar SMS
+- whatsapp_send: Enviar WhatsApp
+- telegram_send: Enviar Telegram
+- discord_send: Enviar Discord
 
 ### Negocio (3)
-
-| Habilidad | Descripción | Límite/mes |
-|-----------|-------------|------------|
-| invoice_generate | Crear facturas | 5,000 |
-| report_generate | Crear reportes | 5,000 |
-| qrcode_generate | Crear QR codes | Ilimitado |
+- invoice_generate: Crear facturas
+- report_generate: Crear reportes
+- qrcode_generate: Crear QR codes
 
 ### Productividad (4)
-
-| Habilidad | Descripción | Proveedor |
-|-----------|-------------|-----------|
-| summarize | Resumir textos | Cliente (Ollama) |
-| extract_data | Extraer datos | Cliente (Ollama) |
-| sentiment | Análisis de sentimiento | Cliente (Ollama) |
-| ocr | OCR de imágenes | Cliente (Ollama Vision) |
+- summarize: Resumir textos
+- extract_data: Extraer datos
+- sentiment: Análisis de sentimiento
+- ocr: OCR de imágenes
 
 ---
 
 ## Habilidades OPCIONALES (14) - Requieren API key
 
-| Habilidad | API necesaria | Estado |
-|-----------|--------------|--------|
-| voice_receive | OPENAI_API_KEY | ⏳ Pendiente |
-| voice_send | OPENAI_API_KEY | ⏳ Pendiente |
-| audio_transcribe | OPENAI_API_KEY | ⏳ Pendiente |
-| image_generate | OPENAI_API_KEY | ⏳ Pendiente |
-| image_edit | OPENAI_API_KEY | ⏳ Pendiente |
-| audio_generate | SUNO_API_KEY | ⏳ Pendiente |
-| video_create | RUNWAY_API_KEY | ⏳ Pendiente |
-| translate | DEEPL_API_KEY | ⏳ Pendiente |
-| location | GOOGLE_MAPS_KEY | ⏳ Pendiente |
-| calendar | GOOGLE_OAUTH | ⏳ Pendiente |
-| sheets | GOOGLE_OAUTH | ⏳ Pendiente |
-| deep_search | PERPLEXITY_API_KEY | ⏳ Pendiente |
-| code_execute | (ninguna) | ✅ Habilitado |
-| image_receive | OLLAMA_API_KEY | ✅ Habilitado |
+| Habilidad | API necesaria |
+|-----------|--------------|
+| voice_receive | OPENAI_API_KEY |
+| voice_send | OPENAI_API_KEY |
+| audio_transcribe | OPENAI_API_KEY |
+| image_generate | OPENAI_API_KEY |
+| image_edit | OPENAI_API_KEY |
+| audio_generate | SUNO_API_KEY |
+| video_create | RUNWAY_API_KEY |
+| translate | DEEPL_API_KEY |
+| location | GOOGLE_MAPS_KEY |
+| calendar | GOOGLE_OAUTH |
+| sheets | GOOGLE_OAUTH |
+| deep_search | PERPLEXITY_API_KEY |
+| code_execute | (ninguna) ✅ |
+| image_receive | OLLAMA_API_KEY ✅ |
 
 ---
 
-## Costo de APIs compartidas: ~$105/mes
+## Bundle: ${BUSINESS_TYPE}
 
-| API | Límite | Costo |
-|-----|--------|-------|
-| Resend | 3,000 emails | $10 |
-| PDF.co | 5,000 páginas | $15 |
-| Mathpix | 1,000 páginas | $10 |
-| Mux | 100 videos | $20 |
-| Twilio | 500 SMS | $10 |
-| Oxylabs | 1,000 requests | $30 |
-| Gamma | 50 presentaciones | $10 |
+${BUNDLE_DESC}
 
 ---
 
-## Skills Bundle por Negocio
-
-BUNDLE_PLACEHOLDER
-
----
-
-*Habilidades configuradas automáticamente en FASE 4.*
+*Habilidades configuradas en FASE 4.*
 SKILLSEOF
 
-# Reemplazar placeholders
-sed -i "s|AGENT_NAME_PLACEHOLDER|${AGENT_NAME}|g" "$CONFIG_DIR/SKILLS.md"
-sed -i "s|BUSINESS_TYPE_PLACEHOLDER|${BUSINESS_TYPE}|g" "$CONFIG_DIR/SKILLS.md"
-sed -i "s|DATE_PLACEHOLDER|$(date -Iseconds)|g" "$CONFIG_DIR/SKILLS.md"
-sed -i "s|BUNDLE_PLACEHOLDER|${BUNDLE}|g" "$CONFIG_DIR/SKILLS.md"
+    CREATED_FILES+=("$CONFIG_DIR/SKILLS.md")
+    log_success "SKILLS.md generado"
+fi
 
-echo -e "${GREEN}   ✓ SKILLS.md generado${NC}"
+#===============================================================================
+# GUARDAR ESTADO
+#===============================================================================
+
+if [[ "$DRY_RUN" != "true" ]]; then
+    log_info "Guardando estado..."
+    
+    cat > "$CONFIG_DIR/.skills-status.json" << EOF
+{
+  "status": "completed",
+  "agent_name": "${AGENT_NAME}",
+  "business_type": "${BUSINESS_TYPE}",
+  "total_skills": 39,
+  "core_skills": 25,
+  "optional_skills": 14,
+  "bundle": "${BUSINESS_TYPE}",
+  "created_at": "$(date -Iseconds)",
+  "version": "1.0.0"
+}
+EOF
+
+    validate_json "$CONFIG_DIR/.skills-status.json" || true
+fi
+
+mark_success
 
 #===============================================================================
 # RESUMEN
@@ -752,10 +640,13 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║              SKILLS SETUP COMPLETADO                          ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}Habilidades CORE:${NC} 25 (siempre funcionan)"
-echo -e "${BLUE}Habilidades OPCIONALES:${NC} 14 (requieren API key)"
-echo -e "${BLUE}Skills Bundle:${NC} ${BUSINESS_TYPE}"
-echo -e "${BLUE}Total habilidades:${NC} 39"
+echo -e "${BLUE}Agente:${NC} ${AGENT_NAME}"
+echo -e "${BLUE}Tipo de negocio:${NC} ${BUSINESS_TYPE}"
+echo ""
+echo -e "${BLUE}Habilidades configuradas:${NC}"
+echo -e "   ${GREEN}✓${NC} 25 habilidades CORE (siempre disponibles)"
+echo -e "   ${GREEN}✓${NC} 14 habilidades OPCIONALES (requieren API key)"
+echo -e "   ${GREEN}✓${NC} Bundle: ${BUSINESS_TYPE}"
 echo ""
 echo -e "${BLUE}Archivos creados:${NC}"
 echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-core.json"
@@ -765,18 +656,5 @@ echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/SKILLS.md"
 echo ""
 echo -e "${YELLOW}Siguiente paso:${NC} ./process-knowledge.sh --agent-name '${AGENT_NAME}'"
 echo ""
-
-# Guardar estado
-cat > "$CONFIG_DIR/.skills-status.json" << EOF
-{
-  "status": "completed",
-  "agent_name": "${AGENT_NAME}",
-  "business_type": "${BUSINESS_TYPE}",
-  "total_core": 25,
-  "total_optional": 14,
-  "total_skills": 39,
-  "created_at": "$(date -Iseconds)"
-}
-EOF
 
 exit 0
