@@ -8,24 +8,32 @@
 # - Allowed users
 # - Validación de funcionamiento
 #===============================================================================
+# Corregido: 2026-03-06 - Auditoría Multigente
+# - Agregado trap para cleanup
+# - Agregado validación de FASE 4
+# - Agregado validación de prerequisitos
+#===============================================================================
 
 set -euo pipefail
 
 # Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly CYAN='\033[0;36m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m'
 
 # Paths
-OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
-CONFIG_DIR="$OPENCLAW_DIR/config"
-SECRETS_DIR="$OPENCLAW_DIR/secrets"
-TELEGRAM_CONFIG="$CONFIG_DIR/telegram.yaml"
-TELEGRAM_SECRETS="$SECRETS_DIR/telegram-secrets.yaml"
+readonly OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/.openclaw}"
+readonly CONFIG_DIR="$OPENCLAW_DIR/config"
+readonly SECRETS_DIR="$OPENCLAW_DIR/secrets"
+readonly TELEGRAM_CONFIG="$CONFIG_DIR/telegram.yaml"
+readonly TELEGRAM_SECRETS="$SECRETS_DIR/telegram-secrets.yaml"
+
+# Estado
+CLEANUP_NEEDED=false
 
 # Configuración
 BOT_TOKEN=""
@@ -38,6 +46,30 @@ WEBHOOK_SECRET=""
 MAX_CONNECTIONS=40
 
 #===============================================================================
+# CLEANUP
+#===============================================================================
+
+cleanup_on_failure() {
+    local exit_code=$?
+    
+    if [[ "$CLEANUP_NEEDED" == "true" && $exit_code -ne 0 ]]; then
+        log_error "Falló la configuración. Limpiando..."
+        rm -f "$TELEGRAM_CONFIG" 2>/dev/null || true
+        rm -f "$TELEGRAM_SECRETS" 2>/dev/null || true
+        log_warn "Archivos parciales removidos"
+    fi
+    
+    exit $exit_code
+}
+
+mark_success() {
+    CLEANUP_NEEDED=false
+}
+
+# Trap para cleanup
+trap cleanup_on_failure EXIT ERR
+
+#===============================================================================
 # UTILIDADES
 #===============================================================================
 
@@ -47,8 +79,38 @@ log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()    { echo -e "${CYAN}==>${NC} $1"; }
 
+check_phase4() {
+    log_step "Validando FASE 4..."
+    
+    # Verificar que FASE 4 está completa
+    local phase4_files=(
+        "$CONFIG_DIR/.fase4-status.json"
+        "$CONFIG_DIR/.identity-status.json"
+        "$CONFIG_DIR/.fleet-status.json"
+        "$OPENCLAW_DIR/openclaw.json"
+    )
+    
+    local found=false
+    for file in "${phase4_files[@]}"; do
+        if [[ -f "$file" ]]; then
+            log_success "FASE 4 detectada: $file"
+            found=true
+            break
+        fi
+    done
+    
+    if [[ "$found" == "false" ]]; then
+        log_error "FASE 4 no completada"
+        log_error "Ejecutar primero: phases/04-identity-fleet/setup-fase4.sh"
+        exit 1
+    fi
+}
+
 check_dependencies() {
     log_step "Verificando dependencias..."
+    
+    # Primero validar FASE 4
+    check_phase4
     
     local deps=("curl" "jq")
     local missing=()
