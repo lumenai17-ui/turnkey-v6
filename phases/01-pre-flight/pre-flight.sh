@@ -62,10 +62,41 @@ parse_args() {
     done
 }
 
+# Verificar dependencias
+check_dependencies() {
+    local missing=()
+    
+    # Verificar jq
+    if ! command -v jq &>/dev/null; then
+        missing+=("jq")
+    fi
+    
+    # Verificar curl
+    if ! command -v curl &>/dev/null; then
+        missing+=("curl")
+    fi
+    
+    # Verificar ss o netstat
+    if ! command -v ss &>/dev/null && ! command -v netstat &>/dev/null; then
+        missing+=("ss/netstat")
+    fi
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}⚠ Dependencias faltantes: ${missing[*]}${NC}"
+        echo -e "  Instalar con: sudo apt-get install ${missing[*]}"
+        return 1
+    fi
+    
+    return 0
+}
+
 # Validar entorno
 validate_environment() {
     echo ""
     echo -e "${CYAN}=== VALIDANDO ENTORNO ===${NC}"
+    
+    # Verificar dependencias primero
+    check_dependencies || true
     
     if [[ -x "${SCRIPTS_DIR}/detect-environment.sh" ]]; then
         local result

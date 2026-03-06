@@ -246,7 +246,7 @@ validate_brave_api() {
         details="Error de conexión (HTTP $http_code)"
         echo -e "  ${YELLOW}⚠ ${details}${NC}"
         WARNINGS+=("No se pudo validar BRAVE_API_KEY - Error HTTP $http_code")
-        VALIDATIONS+=("{\"name\": \"brave\", \"status\": \"warning\", \"key_present\": true, \"key_valid\": "unknown", \"details\": \"${details}\"}")
+        VALIDATIONS+=("{\"name\": \"brave\", \"status\": \"warning\", \"key_present\": true, \"key_valid\": false, \"details\": \"${details}\"}")
         return 2
     fi
 }

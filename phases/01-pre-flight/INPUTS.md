@@ -174,36 +174,6 @@ El script puede recibir inputs de dos formas:
 | Campo | Tipo | Obligatorio | Default | Descripción |
 |-------|------|-------------|---------|-------------|
 | `openai_api_key` | texto | No | - | API key de OpenAI (Whisper, DALL-E, TTS) |
-| `deepl_api_key` | texto | No | - | API key de DeepL (traducción) |
-| `google_maps_key` | texto | No | - | API key de Google Maps (ubicaciones) |
-
-**Preguntas interactivas:**
-```
-? API Key de OpenAI (opcional, para voz e imágenes): __
-? API Key de DeepL (opcional, para traducción): __
-? API Key de Google Maps (opcional, para ubicaciones): __
-```
-
-**Habilidades que habilitan:**
-
-| API Key | Habilidades habilitadas | Costo estimado |
-|---------|------------------------|---------------|
-| `openai_api_key` | voice_receive, voice_send, image_generate, audio_process | ~$0.006/min audio, $0.04-0.12/img |
-| `deepl_api_key` | translate | Gratis 500,000 chars/mes |
-| `google_maps_key` | location | Gratis $200 crédito/mes |
-
-**Validación:**
-- Si falta una API key → La habilidad sigue disponible pero con limitaciones
-- Mostrar mensaje claro: "Para [habilidad], necesito API key de [provider]"
-- Nunca fallar silenciosamente
-
----
-
-### SECCIÓN 3B: API KEYS ADICIONALES (HABILIDADES NATAS)
-
-| Campo | Tipo | Obligatorio | Default | Descripción |
-|-------|------|-------------|---------|-------------|
-| `openai_api_key` | texto | No | - | API key de OpenAI (Whisper, DALL-E, TTS) |
 | `resend_api_key` | texto | No | - | API key de Resend (email) |
 | `deepl_api_key` | texto | No | - | API key de DeepL (traducción) |
 | `google_maps_key` | texto | No | - | API key de Google Maps (ubicaciones) |
@@ -461,7 +431,7 @@ El script puede recibir inputs de dos formas:
 
 ---
 
-### SECCIÓN 9: CONOCIMIENTO DEL NEGOCIO (ARCHIVOS)
+### SECCIÓN 8: CONOCIMIENTO DEL NEGOCIO (ARCHIVOS)
 
 | Campo | Tipo | Obligatorio | Default | Descripción |
 |-------|------|-------------|---------|-------------|
@@ -547,7 +517,7 @@ El script puede recibir inputs de dos formas:
 
 ---
 
-### SECCIÓN 10: CONFIRMACIÓN FINAL
+### SECCIÓN 9: CONFIRMACIÓN FINAL
 
 **Pregunta interactiva:**
 ```
