@@ -1,0 +1,75 @@
+{
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "gateway_health",
+      "name": "Gateway Health Check",
+      "command": "curl -s http://localhost:18789/health",
+      "expected": {"status": "healthy"},
+      "critical": true
+    },
+    {
+      "id": "model_response",
+      "name": "Model Response Test",
+      "command": "curl -X POST http://localhost:18789/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"glm-5\",\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}'",
+      "expected": {"choices": [{"message": {"content": "*"}}]},
+      "critical": true
+    },
+    {
+      "id": "whatsapp_session",
+      "name": "WhatsApp Session Active",
+      "command": "phases/05-bot-config/scripts/validate-channels.sh --whatsapp --json",
+      "expected": {"whatsapp": {"session": "active"}},
+      "critical": true
+    },
+    {
+      "id": "telegram_bot",
+      "name": "Telegram Bot Responds",
+      "command": "phases/05-bot-config/scripts/validate-channels.sh --telegram --json",
+      "expected": {"telegram": {"bot": "valid"}},
+      "critical": true
+    },
+    {
+      "id": "discord_connection",
+      "name": "Discord Bot Connected",
+      "command": "phases/05-bot-config/scripts/validate-channels.sh --discord --json",
+      "expected": {"discord": {"connection": "active"}},
+      "critical": false
+    },
+    {
+      "id": "email_imap",
+      "name": "Email IMAP Connection",
+      "command": "phases/05-bot-config/scripts/validate-channels.sh --email --imap --json",
+      "expected": {"email": {"imap": "connected"}},
+      "critical": true
+    },
+    {
+      "id": "email_smtp",
+      "name": "Email SMTP Connection",
+      "command": "phases/05-bot-config/scripts/validate-channels.sh --email --smtp --json",
+      "expected": {"email": {"smtp": "connected"}},
+      "critical": true
+    ],
+    {
+      "id": "memory_persist",
+      "name": "Memory Persistence",
+      "command": "memory_save_test && memory_read_test",
+      "expected": {"success": true},
+      "critical": false
+    },
+    {
+      "id": "web_search",
+      "name": "Web Search Works",
+      "command": "curl -X POST http://localhost:18789/tools/web_search -d '{\"query\":\"test\"}'",
+      "expected": {"results": "*"},
+      "critical": false
+    },
+    {
+      "id": "pdf_generate",
+      "name": "PDF Generation",
+      "command": "curl -X POST http://localhost:18789/tools/pdf_generate -d '{\"content\":\"test\"}'",
+      "expected": {"url": "*"},
+      "critical": false
+    }
+  ]
+}

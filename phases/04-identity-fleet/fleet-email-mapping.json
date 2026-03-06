@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "created": "2026-03-06",
+  "purpose": "Mapeo entre agentes del FLEET y agentes de EMAIL",
+  
+  "mapping": {
+    "fleet_to_email": {
+      "main": {
+        "email_agent": "bee",
+        "role": "Agente principal - conversación general",
+        "signatuYOUR_RESEND_API_KEY_HERE": "profesional_amigable",
+        "email_address": "bee@bee.ai"
+      },
+      "thinking": {
+        "email_agent": "nova",
+        "role": "Análisis profundo y razonamiento",
+        "signatuYOUR_RESEND_API_KEY_HERE": "analitico_conciso",
+        "email_address": "nova@bee.ai"
+      },
+      "vision": {
+        "email_agent": "atlas",
+        "role": "Procesamiento de imágenes y visión",
+        "signatuYOUR_RESEND_API_KEY_HERE": "visual_descriptivo",
+        "email_address": "atlas@bee.ai"
+      },
+      "coding": {
+        "email_agent": "sage",
+        "role": "Generación y revisión de código",
+        "signatuYOUR_RESEND_API_KEY_HERE": "tecnico_preciso",
+        "email_address": "sage@bee.ai"
+      }
+    },
+    "email_to_fleet": {
+      "bee": "main",
+      "nova": "thinking",
+      "atlas": "vision",
+      "sage": "coding",
+      "lumen": "main"
+    }
+  },
+  
+  "fallback": {
+    "default_email_agent": "bee",
+    "default_fleet_agent": "main",
+    "branded_agent": "lumen"
+  },
+  
+  "routing_rules": {
+    "conversation": {
+      "primary": "main → bee",
+      "description": "Conversación general y orquestación"
+    },
+    "analysis": {
+      "primary": "thinking → nova",
+      "description": "Análisis complejo y razonamiento profundo"
+    },
+    "images": {
+      "primary": "vision → atlas",
+      "description": "Procesamiento de imágenes y OCR"
+    },
+    "code": {
+      "primary": "coding → sage",
+      "description": "Generación y revisión de código"
+    },
+    "branded": {
+      "primary": "main → lumen",
+      "description": "Emails con branding del negocio"
+    }
+  },
+  
+  "signatures": {
+    "bee": {
+      "name": "Bee",
+      "tagline": "Tu asistente inteligente",
+      "emoji": "🐝"
+    },
+    "nova": {
+      "name": "Nova",
+      "tagline": "Lighting the way forward",
+      "emoji": "⚡"
+    },
+    "atlas": {
+      "name": "Atlas",
+      "tagline": "Navigating complexity with precision",
+      "emoji": "🗺️"
+    },
+    "sage": {
+      "name": "Sage",
+      "tagline": "Wisdom in every word",
+      "emoji": "🌿"
+    },
+    "lumen": {
+      "name": "Lumen",
+      "tagline": "Illuminating your business",
+      "emoji": "💡"
+    }
+  },
+  
+  "notes": [
+    "El agente 'lumen' es el nombre brandeable del negocio",
+    "El agente 'bee' es el agente principal por defecto",
+    "Los agentes FLEET (main, thinking, vision, coding) se mapean a agentes EMAIL",
+    "Los agentes EMAIL pueden tener firmas personalizadas por negocio"
+  ]
+}

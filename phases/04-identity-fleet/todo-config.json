@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TURNKEY v6 TODO System Configuration",
+  "version": "1.0.0",
+  "created": "2026-03-06T05:08:00-05:00",
+  "updated": "2026-03-06T05:08:00-05:00",
+  
+  "system": {
+    "enabled": true,
+    "storage_type": "markdown_with_json_index",
+    "primary_file": "TODO.md",
+    "index_file": ".todo-index.json",
+    "archive_file": ".todo-archive.json",
+    "max_history_days": 90,
+    "auto_archive_completed": true,
+    "archive_after_days": 7
+  },
+
+  "heartbeat_integration": {
+    "enabled": true,
+    "sync_on_pulse": true,
+    "pulse_interval_seconds": 60,
+    "hooks": {
+      "on_pulse": {
+        "action": "update_activity_timestamp",
+        "update_metrics": true
+      },
+      "on_state_change": {
+        "from_healthy_to_degraded": {
+          "action": "mark_blocked",
+          "reason": "system_degraded"
+        },
+        "from_degraded_to_healthy": {
+          "action": "reactivate_blocked",
+          "reason": "system_recovered"
+        }
+      },
+      "on_alert": {
+        "overdue_escalation": {
+          "action": "escalate_to_priority_high",
+          "notify": true,
+          "channels": ["console", "log"]
+        }
+      }
+    },
+    "signals": {
+      "pulse": "sync_todo_status",
+      "degraded": "pause_non_critical",
+      "critical": "escalate_all_high_priority",
+      "recovery": "resume_paused_todos"
+    }
+  },
+
+  "priorities": {
+    "high": {
+      "name": "Alta",
+      "emoji": "🔴",
+      "color": "#ef4444",
+      "weight": 100,
+      "escalation_hours": 2,
+      "default_deadline_hours": 24,
+      "max_concurrent": 3,
+      "alert_on_overdue": true,
+      "sound_alert": true
+    },
+    "medium": {
+      "name": "Media",
+      "emoji": "🟠",
+      "color": "#f59e0b",
+      "weight": 50,
+      "escalation_hours": 24,
+      "default_deadline_days": 3,
+      "max_concurrent": 5,
+      "alert_on_overdue": true
+    },
+    "low": {
+      "name": "Baja",
+      "emoji": "🟢",
+      "color": "#22c55e",
+      "weight": 10,
+      "escalation_days": 7,
+      "default_deadline_days": 14,
+      "max_concurrent": 10,
+      "alert_on_overdue": false
+    }
+  },
+
+  "states": {
+    "pending": {
+      "name": "Pendiente",
+      "emoji": "⏳",
+      "color": "#6b7280",
+      "icon": "[ ]",
+      "transitions_to": ["in_progress", "completed", "cancelled"],
+      "sortable": true
+    },
+    "in_progress": {
+      "name": "En Progreso",
+      "emoji": "🏗️",
+      "color": "#3b82f6",
+      "icon": "[~]",
+      "transitions_to": ["completed", "pending", "blocked", "cancelled"],
+      "requires_start_time": true,
+      "track_duration": true
+    },
+    "completed": {
+      "name": "Completado",
+      "emoji": "✅",
+      "color": "#22c55e",
+      "icon": "[x]",
+      "transitions_to": [],
+      "terminal": true,
+      "requires_completion_time": true,
+      "archive_after_days": 7
+    },
+    "blocked": {
+      "name": "Bloqueado",
+      "emoji": "🚫",
+      "color": "#dc2626",
+      "icon": "[!] [~]",
+      "transitions_to": ["in_progress", "pending", "cancelled"],
+      "requires_reason": true
+    },
+    "cancelled": {
+      "name": "Cancelado",
+      "emoji": "❌",
+      "color": "#991b1b",
+      "icon": "[-]",
+      "transitions_to": [],
+      "terminal": true,
+      "requires_reason": true
+    }
+  },
+
+  "categories": {
+    "by_area": {
+      "01-fundamentos": {
+        "prefix": "FND-",
+        "subcategories": ["arquitectura", "base", "config", "setup"],
+        "color": "#1e3a5f"
+      },
+      "02-identidad": {
+        "prefix": "ID-",
+        "subcategories": ["auth", "perfil", "seguridad", "credenciales"],
+        "color": "#2d4a6f"
+      },
+      "03-comunicacion": {
+        "prefix": "COM-",
+        "subcategories": ["mensajes", "notificaciones", "canales", "protocolos"],
+        "color": "#3d5a8f"
+      },
+      "04-identity-fleet": {
+        "prefix": "FLT-",
+        "subcategories": ["agentes", "orquestacion", "flota", "coordinacion"],
+        "color": "#4d6aaf"
+      },
+      "05-memoria": {
+        "prefix": "MEM-",
+        "subcategories": ["persistencia", "cache", "backup", "recuperacion"],
+        "color": "#5d7acf"
+      },
+      "06-knowledge": {
+        "prefix": "KNW-",
+        "subcategories": ["rag", "embeddings", "indices", "busqueda"],
+        "color": "#6d8aef"
+      },
+      "07-herramientas": {
+        "prefix": "TOOL-",
+        "subcategories": ["integraciones", "apis", "scripts", "automatizacion"],
+        "color": "#7d9aff"
+      },
+      "08-produccion": {
+        "prefix": "PROD-",
+        "subcategories": ["deploy", "monitoreo", "escala", "mantenimiento"],
+        "color": "#8daaff"
+      }
+    },
+    "by_type": {
+      "bug": {
+        "prefix": "BUG-",
+        "emoji": "🐛",
+        "default_priority": "high"
+      },
+      "feature": {
+        "prefix": "FEAT-",
+        "emoji": "✨",
+        "default_priority": "medium"
+      },
+      "improvement": {
+        "prefix": "IMP-",
+        "emoji": "⚡",
+        "default_priority": "low"
+      },
+      "documentation": {
+        "prefix": "DOC-",
+        "emoji": "📚",
+        "default_priority": "low"
+      },
+      "research": {
+        "prefix": "RSC-",
+        "emoji": "🔬",
+        "default_priority": "low"
+      },
+      "maintenance": {
+        "prefix": "MNT-",
+        "emoji": "🔧",
+        "default_priority": "medium"
+      }
+    }
+  },
+
+  "deadlines": {
+    "enabled": true,
+    "warning_advance_hours": [24, 4, 1, 0.5],
+    "overdue_check_interval_minutes": 15,
+    "auto_escalate_overdue": true,
+    "escalation_rules": {
+      "1_day_overdue": {
+        "increase_priority": true,
+        "add_tag": "#overdue-1d"
+      },
+      "3_days_overdue": {
+        "notify": true,
+        "add_tag": "#overdue-3d",
+        "escalate_to": "system_admin"
+      },
+      "7_days_overdue": {
+        "requiYOUR_RESEND_API_KEY_HERE": true,
+        "add_tag": "#overdue-7d",
+        "auto_cancel_after_days": 30
+      }
+    }
+  },
+
+  "notifications": {
+    "enabled": true,
+    "channels": {
+      "console": {
+        "enabled": true,
+        "color_output": true
+      },
+      "log": {
+        "enabled": true,
+        "file": ".todo.log",
+        "rotation": "daily"
+      },
+      "websocket": {
+        "enabled": false,
+        "endpoint": null
+      },
+      "external": {
+        "enabled": false,
+        "webhook": null
+      }
+    },
+    "triggers": {
+      "on_create": {
+        "high_priority": true,
+        "all_priorities": false
+      },
+      "on_state_change": {
+        "to_in_progress": false,
+        "to_completed": true,
+        "to_blocked": true
+      },
+      "on_deadline": {
+        "approaching": true,
+        "reached": true,
+        "overdue": true
+      },
+      "daily_summary": {
+        "enabled": true,
+        "time": "09:00",
+        "include_stats": true
+      },
+      "weekly_review": {
+        "enabled": true,
+        "day": "monday",
+        "time": "10:00",
+        "include_completed": true
+      }
+    }
+  },
+
+  "validation": {
+    "requiYOUR_RESEND_API_KEY_HERE": false,
+    "min_description_length": 10,
+    "max_title_length": 100,
+    "max_description_length": 1000,
+    "valid_date_formats": [
+      "YYYY-MM-DD",
+      "YYYY-MM-DD HH:MM",
+      "YYYY-MM-DDTHH:MM:SS",
+      "YYYY-MM-DDTHH:MM:SSZ"
+    ],
+    "allowed_tags": [
+      "urgent",
+      "blocked",
+      "needs-review",
+      "recurring",
+      "estimated",
+      "dependencies"
+    ]
+  },
+
+  "display": {
+    "sort_order": ["priority", "deadline", "created_date"],
+    "group_by": "priority",
+    "show_completed_count": 10,
+    "date_format": "YYYY-MM-DD HH:MM",
+    "relative_dates": true,
+    "show_progress_bar": true,
+    "compact_mode": false,
+    "show_tags": true,
+    "show_categories": true,
+    "show_dependencies": true
+  },
+
+  "shortcuts": {
+    "cli_commands": {
+      "add": {
+        "usage": "todo add -p <priority> -c <category> [-d <deadline>] <title>",
+        "example": "todo add -p high -c FLT-ORCH -d 2026-03-10 \"Implementar orquestador\""
+      },
+      "start": {
+        "usage": "todo start <id|#partial_title>",
+        "example": "todo start FLT-001"
+      },
+      "complete": {
+        "usage": "todo complete <id|#partial_title> [-n \"notes\"]",
+        "example": "todo complete FLT-001 -n \"Funcionando correctamente\""
+      },
+      "block": {
+        "usage": "todo block <id> -r <reason>",
+        "example": "todo block FLT-001 -r \"Esperando API externa\""
+      },
+      "list": {
+        "usage": "todo list [-p <priority>] [-s <state>] [-c <category>]",
+        "example": "todo list -p high -s pending"
+      },
+      "overdue": {
+        "usage": "todo overdue",
+        "description": "Lista todos los TODOs vencidos"
+      },
+      "report": {
+        "usage": "todo report [-period daily|weekly|monthly]",
+        "description": "Genera reporte de métricas"
+      }
+    },
+    "quick_keys": {
+      "a": "add",
+      "s": "start",
+      "c": "complete",
+      "b": "block",
+      "l": "list",
+      "o": "overdue",
+      "r": "report",
+      "q": "quit"
+    }
+  },
+
+  "metrics": {
+    "track_completion_time": true,
+    "track_creation_rate": true,
+    "track_completion_rate": true,
+    "track_overdue_rate": true,
+    "calculate_velocity": true,
+    "retention_days": 90,
+    "export_format": "json"
+  },
+
+  "backup": {
+    "enabled": true,
+    "interval_hours": 6,
+    "max_backups": 10,
+    "backup_location": ".todo-backups/",
+    "include_archive": true
+  },
+
+  "import_export": {
+    "formats": ["json", "csv", "markdown"],
+    "include_metadata": true,
+    "include_history": true
+  }
+}

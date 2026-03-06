@@ -1,0 +1,47 @@
+{
+  "$comment": "TURNKEY v6 - Defaults específicos de PRE-FLIGHT",
+  "version": "6.0.0",
+  
+  "resources": {
+    "vps": {
+      "ram_min_gb": 2,
+      "ram_recommended_gb": 4,
+      "cpu_min": 1,
+      "cpu_recommended": 2,
+      "disk_min_gb": 20,
+      "disk_recommended_gb": 50,
+      "agents_max": 1,
+      "ports_count": 1
+    },
+    "dedicado": {
+      "ram_min_gb": 16,
+      "ram_recommended_gb": 32,
+      "cpu_min": 4,
+      "cpu_recommended": 8,
+      "disk_min_gb": 100,
+      "disk_recommended_gb": 500,
+      "agents_max": 5,
+      "ports_count": 5
+    }
+  },
+  
+  "validation": {
+    "below_min": "warn_and_confirm",
+    "below_recommended": "warn",
+    "api_key_missing": "error",
+    "api_key_invalid": "error"
+  },
+  
+  "required_ports": [18789, 18790, 18791, 18792, 18793],
+  
+  "api_endpoints": {
+    "ollama": {
+      "url": "https://api.ollama.com/v1/models",
+      "timeout_seconds": 10
+    },
+    "brave": {
+      "url": "https://api.search.brave.com/res/v1/web/search",
+      "timeout_seconds": 5
+    }
+  }
+}

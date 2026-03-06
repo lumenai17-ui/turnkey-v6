@@ -1,0 +1,45 @@
+# PREGUNTAS MODO INTERACTIVO
+# TURNKEY v6 - FASE 1: PRE-FLIGHT
+# Formato: una pregunta por línea, opciones entre corchetes, default entre paréntesis
+
+## ENTORNO
+? Tipo de despliegue: [v]ps / [d]edicado (auto-detectar)
+? Confirmar tipo detectado: [s/n] (s)
+
+## AGENTE
+? Nombre del agente: (Agent-{timestamp})
+? Rol del agente: (Asistente virtual)
+? Emoji: (🤖)
+? Template de personalidad: [1]restaurant [2]hotel [3]retail [4]services [5]custom (custom)
+
+## API KEYS
+? API Key de Ollama Cloud (requerida): 
+? Validar API Key de Ollama? [s/n] (s)
+? API Key de Brave Search (opcional, para web_search): 
+? API Key de OpenAI (opcional): 
+
+## CANALES
+? Configurar Telegram ahora? [s/n] (s)
+? Token del bot de Telegram: 
+? Tu Telegram User ID: 
+? Configurar Email ahora? [s/n] (n)
+? Servidor SMTP: 
+? Puerto SMTP: (587)
+? Usuario SMTP: 
+? Contraseña SMTP: 
+
+## SKILLS
+? Habilitar voicenote (transcripción de audio)? [s/n] (s)
+? Habilitar pdf_reader? [s/n] (s)
+? Habilitar web_search (requiere Brave API)? [s/n] (s)
+
+## MODELOS
+? Modelo primario: [1]glm-5 [2]kimi-k2.5 [3]deepseek-v3.2 (glm-5)
+? Modelo fallback: [1]kimi-k2.5 [2]deepseek-v3.2 [3]qwen3.5 (kimi-k2.5)
+
+## PUERTO
+? Puerto para el agente: (18789 o primer disponible)
+
+## CONFIRMACIÓN
+? Configuración correcta? [s/n] (s)
+? Guardar configuración? [s/n] (s)

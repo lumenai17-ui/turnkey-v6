@@ -1,0 +1,25 @@
+{
+    "phase": "02-setup-users",
+    "script": "setup-users",
+    "version": "6.0.0",
+    "timestamp": "2026-03-05T09:20:08-05:00",
+    "agent": {
+        "name": "demo-password",
+        "username": "bee-demo-password",
+        "prefix": "bee-"
+    },
+    "status": "success",
+    "message": "Usuario y estructura creados correctamente",
+    "dry_run": true,
+    "directories": {
+        "config": "/home/bee-demo-password/.openclaw/config",
+        "workspace": "/home/bee-demo-password/.openclaw/workspace",
+        "logs": "/home/bee-demo-password/.openclaw/logs",
+        "data": "/home/bee-demo-password/.openclaw/data"
+    },
+    "permissions": {
+        "config": "700",
+        "standard": "755"
+    },
+    "next_phase": "03-install-deps"
+}

@@ -1,0 +1,167 @@
+# Second Brain Configuration
+# TURNKEY v6 - FASE 4 ÁREA 4
+
+version: "6.0.0"
+agent_name: "lumen"
+
+# ============================================
+# SCORING DE IMPORTANCIA
+# ============================================
+scoring:
+  emotion_weight: 0.3      # Si fue emocional para el usuario
+  reference_weight: 0.25   # Si fue referenciado después
+  recency_weight: 0.2      # Qué tan reciente
+  task_weight: 0.15        # Si relacionado con tarea
+  connection_weight: 0.1   # Número de conexiones
+  
+  min_score: 1            # Score mínimo para guardar
+  max_score: 100          # Score máximo
+
+# ============================================
+# CONSOLIDACIÓN
+# ============================================
+consolidation:
+  frequency: "1h"          # Cada hora
+  min_score: 5             # Score mínimo para consolidar
+  max_age: "30d"           # Edad máxima para consolidar
+  max_items: 100           # Máximo items por consolidación
+  
+  auto_consolidate: true   # Automático o manual
+  backup_before: true      # Backup antes de consolidar
+
+# ============================================
+# DECAY (DECAIMIENTO)
+# ============================================
+decay:
+  enabled: true
+  rate: 0.1               # 10% por semana
+  min_score: 1            # Score mínimo antes de eliminar
+  check_frequency: "1d"   # Verificar diario
+
+# ============================================
+# BÚSQUEDA
+# ============================================
+search:
+  hybrid: true            # FTS + Semántica
+  
+  fts:
+    enabled: true
+    max_results: 10
+  
+  semantic:
+    enabled: true
+    min_similarity: 0.5
+    embedding_model: "nomic-embed-text"
+
+# ============================================
+# INTEGRACIÓN
+# ============================================
+integration:
+  # Sincronizar con KNOWLEDGE
+  knowledge_sync: true
+  knowledge_path: "~/.openclaw/workspace/knowledge/"
+  
+  # Conectar con HEART
+  heart_sync: true
+  heart_path: "~/.openclaw/workspace/HEART.md"
+  
+  # Conectar con DOPAMINE
+  dopamine_sync: true
+  dopamine_path: "~/.openclaw/workspace/memory/DOPAMINE.json"
+  
+  # Conectar con HEARTBEAT
+  heartbeat_sync: true
+  heartbeat_path: "~/.openclaw/workspace/HEARTBEAT.md"
+
+# ============================================
+# CAPTURA
+# ============================================
+capture:
+  auto_capture: true      # Capturar automáticamente
+  capture_emotions: true  # Capturar contexto emocional
+  capture_tasks: true     # Capturar tareas mencionadas
+  
+  # Palabras clave para capturar
+  trigger_words:
+    - "importante"
+    - "recuerda"
+    - "no olvides"
+    - "pendiente"
+    - "idea"
+    - "nota"
+
+# ============================================
+# CATEGORIZACIÓN AUTOMÁTICA
+# ============================================
+categorization:
+  auto_categorize: true
+  
+  # Mapeo de palabras a categorías
+  category_keywords:
+    project:
+      - "proyecto"
+      - "proyecto"
+      - "deadline"
+      - "entrega"
+      - "meta"
+    area:
+      - "salud"
+      - "finanzas"
+      - "relaciones"
+      - "trabajo"
+      - "aprendizaje"
+    resource:
+      - "artículo"
+      - "libro"
+      - "tutorial"
+      - "referencia"
+      - "documentación"
+
+# ============================================
+# PREFERENCIAS APRENDIDAS
+# ============================================
+learned_preferences:
+  communication_style: "direct"
+  preferred_topics: []
+  response_length: "concise"
+  timezone: "America/Panama"
+  language: "es"
+
+# ============================================
+# MEMORIA EMOCIONAL
+# ============================================
+emotional_memory:
+  enabled: true
+  
+  # Emociones soportadas
+  emotions:
+    - happy
+    - sad
+    - angry
+    - fear
+    - surprise
+    - curiosity
+    - neutral
+  
+  # Intensidad (0.0 - 1.0)
+  intensity_range:
+    min: 0.0
+    max: 1.0
+
+# ============================================
+# BACKUP
+# ============================================
+backup:
+  enabled: true
+  frequency: "1d"         # Diario
+  retention: "30d"        # 30 días
+  path: "~/.openclaw/workspace/backups/second-brain/"
+  
+# ============================================
+# LOGGING
+# ============================================
+logging:
+  level: "info"           # debug, info, warning, error
+  path: "~/.openclaw/logs/second-brain.log"
+  max_size: "10MB"
+  max_files: 5
