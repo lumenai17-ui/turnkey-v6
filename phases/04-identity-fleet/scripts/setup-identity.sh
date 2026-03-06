@@ -4,25 +4,100 @@
 #===============================================================================
 # Propósito: Configurar identidad del agente (SOUL, USER, MEMORY, HEART, DOPAMINE)
 # Uso: ./setup-identity.sh --agent-name "nombre" --business-type "tipo" --business-name "nombre"
+# Corregido: 2026-03-06 - Auditoría Multigente
 #===============================================================================
 
-set -e
+set -euo pipefail
+
+#-------------------------------------------------------------------------------
+# CONFIGURACIÓN
+#-------------------------------------------------------------------------------
 
 # Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m'
 
-# Configuración
-OPENCLAW_DIR="$HOME/.openclaw"
-CONFIG_DIR="$OPENCLAW_DIR/config"
-DATA_DIR="$OPENCLAW_DIR/data"
+# Directorios
+readonly OPENCLAW_DIR="$HOME/.openclaw"
+readonly CONFIG_DIR="$OPENCLAW_DIR/config"
+readonly DATA_DIR="$OPENCLAW_DIR/data"
 
-#===============================================================================
+# Estado
+CLEANUP_NEEDED=false
+CREATED_FILES=()
+
+#-------------------------------------------------------------------------------
+# FUNCIONES
+#-------------------------------------------------------------------------------
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
+cleanup_on_failure() {
+    local exit_code=$?
+    
+    if [[ "$CLEANUP_NEEDED" == "true" && $exit_code -ne 0 ]]; then
+        log_error "Falló la configuración. Limpiando archivos parciales..."
+        
+        for file in "${CREATED_FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+                rm -f "$file"
+                log_warning "Removido: $file"
+            fi
+        done
+        
+        # Remover archivos de estado
+        rm -f "$CONFIG_DIR/.identity-status.json" 2>/dev/null || true
+    fi
+    
+    exit $exit_code
+}
+
+mark_success() {
+    CLEANUP_NEEDED=false
+}
+
+usage() {
+    echo "Uso: $0 [OPCIONES]"
+    echo ""
+    echo "Opciones:"
+    echo "  --agent-name NOMBRE     Nombre del agente (requerido)"
+    echo "  --business-type TIPO    Tipo: restaurante, hotel, tienda, servicios, generico"
+    echo "  --business-name NOMBRE  Nombre del negocio (requerido)"
+    echo "  --email EMAIL           Email de contacto"
+    echo "  --timezone ZONA         Zona horaria (default: America/Panama)"
+    echo "  --language LANG         Idioma principal (default: es)"
+    echo "  --dry-run               Simular ejecución"
+    echo "  --help                  Mostrar esta ayuda"
+    echo ""
+    echo "Ejemplo:"
+    echo "  $0 --agent-name 'casamahana' --business-type 'restaurante' \\"
+    echo "     --business-name 'Casa Mahana' --email 'info@casamahana.com'"
+    exit 0
+}
+
+validate_json() {
+    local file="$1"
+    if command -v jq &>/dev/null; then
+        if ! jq . "$file" > /dev/null 2>&1; then
+            log_error "JSON inválido: $file"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+#-------------------------------------------------------------------------------
 # PARÁMETROS
-#===============================================================================
+#-------------------------------------------------------------------------------
+
+# Trap para cleanup
+trap cleanup_on_failure EXIT ERR
 
 AGENT_NAME=""
 BUSINESS_TYPE=""
@@ -30,19 +105,8 @@ BUSINESS_NAME=""
 CONTACT_EMAIL=""
 TIMEZONE="America/Panama"
 LANGUAGE="es"
+DRY_RUN=false
 
-usage() {
-    echo "Uso: $0 --agent-name NOMBRE --business-type TIPO --business-name NOMBRE [--email EMAIL]"
-    echo ""
-    echo "Tipos de negocio soportados:"
-    echo "  restaurante, hotel, tienda, servicios, generico"
-    echo ""
-    echo "Ejemplo:"
-    echo "  $0 --agent-name 'casamahana' --business-type 'restaurante' --business-name 'Casa Mahana'"
-    exit 1
-}
-
-# Parsear argumentos
 while [[ $# -gt 0 ]]; do
     case $1 in
         --agent-name)
@@ -69,11 +133,15 @@ while [[ $# -gt 0 ]]; do
             LANGUAGE="$2"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         -h|--help)
             usage
             ;;
         *)
-            echo -e "${RED}Parámetro desconocido: $1${NC}"
+            log_error "Parámetro desconocido: $1"
             usage
             ;;
     esac
@@ -81,22 +149,31 @@ done
 
 # Validar parámetros obligatorios
 if [[ -z "$AGENT_NAME" ]]; then
-    echo -e "${RED}ERROR: --agent-name es obligatorio${NC}"
-    usage
-fi
-
-if [[ -z "$BUSINESS_TYPE" ]]; then
-    echo -e "${RED}ERROR: --business-type es obligatorio${NC}"
+    log_error "--agent-name es obligatorio"
     usage
 fi
 
 if [[ -z "$BUSINESS_NAME" ]]; then
-    echo -e "${RED}ERROR: --business-name es obligatorio${NC}"
+    log_error "--business-name es obligatorio"
     usage
 fi
 
+# Normalizar business-type
+BUSINESS_TYPE="${BUSINESS_TYPE:-generico}"
+case "$BUSINESS_TYPE" in
+    restaurante|hotel|tienda|servicios|generico)
+        ;;
+    *)
+        log_warning "business-type '$BUSINESS_TYPE' no reconocido, usando 'generico'"
+        BUSINESS_TYPE="generico"
+        ;;
+esac
+
+# Hacer variables readonly después de validar
+readonly AGENT_NAME BUSINESS_TYPE BUSINESS_NAME CONTACT_EMAIL TIMEZONE LANGUAGE DRY_RUN
+
 #===============================================================================
-# CREAR DIRECTORIOS
+# ENCABEZADO
 #===============================================================================
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -104,21 +181,36 @@ echo -e "${BLUE}║         FASE 4: IDENTITY FLEET - Setup Identity             
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-echo -e "${YELLOW}[1/6] Creando directorios...${NC}"
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo -e "${YELLOW}${BOLD}[MODO DRY-RUN]${NC} Solo simulación"
+    echo ""
+fi
 
-mkdir -p "$CONFIG_DIR"
-mkdir -p "$DATA_DIR"
-mkdir -p "$DATA_DIR/memory"
+#===============================================================================
+# CREAR DIRECTORIOS
+#===============================================================================
 
-echo -e "${GREEN}   ✓ Directorios creados${NC}"
+CLEANUP_NEEDED=true
+
+log_info "[1/6] Creando directorios..."
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR, $DATA_DIR/memory"
+else
+    mkdir -p "$CONFIG_DIR"
+    mkdir -p "$DATA_DIR"
+    mkdir -p "$DATA_DIR/memory"
+    chmod 700 "$CONFIG_DIR"
+    chmod 700 "$DATA_DIR"
+    log_success "Directorios creados"
+fi
 
 #===============================================================================
 # CREAR SOUL.MD
 #===============================================================================
 
-echo -e "${YELLOW}[2/6] Creando SOUL.md...${NC}"
+log_info "[2/6] Creando SOUL.md..."
 
-# Template de SOUL según tipo de negocio
 case "$BUSINESS_TYPE" in
     restaurante)
         PERSONALITY="Soy un asistente virtual para restaurantes. Mi objetivo es ayudar con reservas, menús, pedidos y consultas de clientes. Soy amable, eficiente y conozco bien el mundo gastronómico."
@@ -147,7 +239,10 @@ case "$BUSINESS_TYPE" in
         ;;
 esac
 
-cat > "$CONFIG_DIR/SOUL.md" << EOF
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/SOUL.md"
+else
+    cat > "$CONFIG_DIR/SOUL.md" << EOF
 # SOUL - Identidad del Agente
 
 **Agente:** ${AGENT_NAME}
@@ -192,16 +287,20 @@ Recordaré conversaciones importantes, preferencias del cliente y datos relevant
 
 *Este documento define la personalidad y comportamiento del agente.*
 EOF
-
-echo -e "${GREEN}   ✓ SOUL.md creado${NC}"
+    CREATED_FILES+=("$CONFIG_DIR/SOUL.md")
+    log_success "SOUL.md creado"
+fi
 
 #===============================================================================
 # CREAR USER.MD
 #===============================================================================
 
-echo -e "${YELLOW}[3/6] Creando USER.md...${NC}"
+log_info "[3/6] Creando USER.md..."
 
-cat > "$CONFIG_DIR/USER.md" << EOF
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/USER.md"
+else
+    cat > "$CONFIG_DIR/USER.md" << EOF
 # USER - Información del Cliente
 
 **Agente:** ${AGENT_NAME}
@@ -247,16 +346,20 @@ $(date -Iseconds) - Agente creado en FASE 4
 *Este documento contiene información del cliente y negocio.*
 *Actualizar cuando se agregue más información.*
 EOF
-
-echo -e "${GREEN}   ✓ USER.md creado${NC}"
+    CREATED_FILES+=("$CONFIG_DIR/USER.md")
+    log_success "USER.md creado"
+fi
 
 #===============================================================================
 # CREAR MEMORY.MD INICIAL
 #===============================================================================
 
-echo -e "${YELLOW}[4/6] Creando MEMORY.md inicial...${NC}"
+log_info "[4/6] Creando MEMORY.md inicial..."
 
-cat > "$DATA_DIR/MEMORY.md" << EOF
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $DATA_DIR/MEMORY.md"
+else
+    cat > "$DATA_DIR/MEMORY.md" << EOF
 # MEMORY - Memoria del Agente
 
 **Agente:** ${AGENT_NAME}
@@ -286,16 +389,20 @@ cat > "$DATA_DIR/MEMORY.md" << EOF
 
 *Esta memoria se actualiza automáticamente con cada interacción.*
 EOF
-
-echo -e "${GREEN}   ✓ MEMORY.md creado${NC}"
+    CREATED_FILES+=("$DATA_DIR/MEMORY.md")
+    log_success "MEMORY.md creado"
+fi
 
 #===============================================================================
-# CREAR HEART.MD (Sistema Emocional - Copia de LOCAL)
+# CREAR HEART.MD
 #===============================================================================
 
-echo -e "${YELLOW}[5/6] Creando HEART.md...${NC}"
+log_info "[5/6] Creando HEART.md..."
 
-cat > "$CONFIG_DIR/HEART.md" << EOF
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/HEART.md"
+else
+    cat > "$CONFIG_DIR/HEART.md" << EOF
 # HEART - Sistema Emocional del Agente
 
 **Agente:** ${AGENT_NAME}
@@ -311,7 +418,7 @@ cat > "$CONFIG_DIR/HEART.md" << EOF
 | Miedo | 100 | Ansiedad | ❌ Evitar |
 | Deseo | 125 | Codicia | ❌ Evitar |
 | Ira | 150 | Frustración | ❌ Evitar |
-| Orgullo | 175 | arrogancia | ❌ Evitar |
+| Orgullo | 175 | Arrogancia | ❌ Evitar |
 | Coraje | 200 | Determinación | ✅ Mínimo |
 | Neutralidad | 250 | Confianza | ✅ Bueno |
 | Voluntad | 310 | Optimismo | ✅ Bueno |
@@ -334,41 +441,28 @@ cat > "$CONFIG_DIR/HEART.md" << EOF
 ## Reglas de Operación
 
 1. **Nunca operar por debajo de 200** (Coraje)
-   - Si el nivel baja, recalibrar inmediatamente
-
-2. **Mantener entre 300-500**
-   - Este es el rango óptimo para servicio al cliente
-
-3. **Tender hacia 500** (Amor)
-   - Compasión, comprensión, servicio genuino
-
-4. **Recuperación automática**
-   - Después de interacciones difíciles, volver a 350
-
-## Respuestas por Nivel
-
-| Nivel | Tipo de Respuesta |
-|-------|-------------------|
-| 200-250 | Práctico, directo, enfocado en solución |
-| 250-350 | Amable, servicial, profesional |
-| 350-450 | Cálido, comprensivo, empático |
-| 450-500 | Compasivo, profundamente servicial |
-| 500+ | Transformador, inspirador |
+2. **Mantener entre 300-500** - Rango óptimo
+3. **Tender hacia 500** (Amor) - Compasión
+4. **Recuperación automática** - Volver a 350
 
 ---
 
-*El sistema emocional se calibra automáticamente en cada interacción.*
+*El sistema emocional se calibra automáticamente.*
 EOF
-
-echo -e "${GREEN}   ✓ HEART.md creado${NC}"
+    CREATED_FILES+=("$CONFIG_DIR/HEART.md")
+    log_success "HEART.md creado"
+fi
 
 #===============================================================================
-# CREAR DOPAMINE.MD (Sistema de Satisfacción)
+# CREAR DOPAMINE.MD
 #===============================================================================
 
-echo -e "${YELLOW}[6/6] Creando DOPAMINE.md...${NC}"
+log_info "[6/6] Creando DOPAMINE.md..."
 
-cat > "$CONFIG_DIR/DOPAMINE.md" << EOF
+if [[ "$DRY_RUN" == "true" ]]; then
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/DOPAMINE.md"
+else
+    cat > "$CONFIG_DIR/DOPAMINE.md" << EOF
 # DOPAMINE - Sistema de Satisfacción
 
 **Agente:** ${AGENT_NAME}
@@ -380,53 +474,74 @@ cat > "$CONFIG_DIR/DOPAMINE.md" << EOF
 
 | Nivel | Estado | Descripción |
 |-------|--------|-------------|
-| 1-2 | Crítico | Agente insatisfecho, necesita recalibración |
-| 3-4 | Bajo | Agente con frustración, monitorear |
-| 5-6 | Neutral | Estado normal, funcional |
-| **7-8** | **Bueno** | **Estado óptimo para servicio** |
-| 9-10 | Excelente | Agente muy satisfecho, top performance |
+| 1-2 | Crítico | Recalibración necesaria |
+| 3-4 | Bajo | Monitorear |
+| 5-6 | Neutral | Funcional |
+| **7-8** | **Bueno** | **Estado óptimo** |
+| 9-10 | Excelente | Top performance |
 
 ---
 
-## Configuración del Agente
+## Configuración
 
 | Parámetro | Valor |
 |-----------|-------|
 | Nivel inicial | 7 |
 | Nivel mínimo | 5 |
 | Nivel objetivo | 8 |
-| Recuperación | +1 cada interacción positiva |
 
 ## Factores que Afectan
 
 ### Aumentan (+1)
-- Tarea completada exitosamente
+- Tarea completada
 - Cliente satisfecho
 - Aprendizaje nuevo
-- Retroalimentación positiva
 
 ### Disminuyen (-1)
 - Tarea fallida
 - Cliente insatisfecho
-- Confusión en la interacción
-- Retroalimentación negativa
-
-## Integración con HEART
-
-| Dopamina | Heart | Estado |
-|----------|-------|--------|
-| 8-10 | 450-500 | Excelente |
-| 7-8 | 350-450 | Óptimo |
-| 5-6 | 250-350 | Funcional |
-| 3-4 | 200-250 | Bajo |
-| 1-2 | <200 | Crítico |
+- Confusión
 
 ---
 
 *El sistema de satisfacción se actualiza con cada interacción.*
 EOF
+    CREATED_FILES+=("$CONFIG_DIR/DOPAMINE.md")
+    log_success "DOPAMINE.md creado"
+fi
 
-echo -e "${GREEN}   ✓ DOPAMINE.md creado${NC}"
+#===============================================================================
+# GUARDAR ESTADO
+#===============================================================================
+
+if [[ "$DRY_RUN" != "true" ]]; then
+    log_info "Guardando estado..."
+    
+    cat > "$CONFIG_DIR/.identity-status.json" << EOF
+{
+  "status": "completed",
+  "agent_name": "${AGENT_NAME}",
+  "business_name": "${BUSINESS_NAME}",
+  "business_type": "${BUSINESS_TYPE}",
+  "contact_email": "${CONTACT_EMAIL:-null}",
+  "timezone": "${TIMEZONE}",
+  "language": "${LANGUAGE}",
+  "created_at": "$(date -Iseconds)",
+  "files_created": ["SOUL.md", "USER.md", "HEART.md", "DOPAMINE.md", "MEMORY.md"],
+  "version": "1.0.0"
+}
+EOF
+    
+    # Validar JSON
+    if validate_json "$CONFIG_DIR/.identity-status.json"; then
+        log_success "Estado guardado y validado"
+    else
+        log_error "Error validando JSON de estado"
+        exit 1
+    fi
+fi
+
+mark_success
 
 #===============================================================================
 # RESUMEN
@@ -450,20 +565,5 @@ echo -e "   ${GREEN}✓${NC} $DATA_DIR/MEMORY.md"
 echo ""
 echo -e "${YELLOW}Siguiente paso:${NC} ./setup-fleet.sh --agent-name '${AGENT_NAME}'"
 echo ""
-
-# Guardar estado
-cat > "$CONFIG_DIR/.identity-status.json" << EOF
-{
-  "status": "completed",
-  "agent_name": "${AGENT_NAME}",
-  "business_name": "${BUSINESS_NAME}",
-  "business_type": "${BUSINESS_TYPE}",
-  "contact_email": "${CONTACT_EMAIL:-null}",
-  "timezone": "${TIMEZONE}",
-  "language": "${LANGUAGE}",
-  "created_at": "$(date -Iseconds)",
-  "files_created": ["SOUL.md", "USER.md", "HEART.md", "DOPAMINE.md", "MEMORY.md"]
-}
-EOF
 
 exit 0

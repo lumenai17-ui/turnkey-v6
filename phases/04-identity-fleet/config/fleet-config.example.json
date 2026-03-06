@@ -1,0 +1,112 @@
+{
+  "_comment": "TEMPLATE - Los valores ${VAR} se reemplazan desde variables de entorno",
+  "_warning": "NUNCA commitear secrets reales - usar .env o secrets.json",
+  
+  "fleet": {
+    "name": "LUMEN_v2",
+    "version": "2.0.0",
+    "description": "Flota de modelos AI para OpenClaw",
+    "updated": "${TIMESTAMP}"
+  },
+  
+  "providers": {
+    "ollamacloud": {
+      "enabled": true,
+      "apiKey": "${OLLAMA_API_KEY}",
+      "baseUrl": "https://api.ollamacloud.ai/v1",
+      "models": [
+        {
+          "id": "general",
+          "name": "GLM-4",
+          "model": "glm-4",
+          "context": 128000,
+          "cost": 0.0001,
+          "use": ["chat", "reasoning"]
+        },
+        {
+          "id": "coding",
+          "name": "Qwen Coder",
+          "model": "qwen3-coder-next",
+          "context": 128000,
+          "cost": 0.0001,
+          "use": ["code", "debug"]
+        },
+        {
+          "id": "thinking",
+          "name": "DeepSeek R1",
+          "model": "deepseek-r1-0528",
+          "context": 64000,
+          "cost": 0.0002,
+          "use": ["analysis", "planning"]
+        },
+        {
+          "id": "mini",
+          "name": "GLM-4 Flash",
+          "model": "glm-4-flash",
+          "context": 128000,
+          "cost": 0.00001,
+          "use": ["quick", "simple"]
+        },
+        {
+          "id": "vision",
+          "name": "Qwen VL",
+          "model": "qwen-vl-max",
+          "context": 32000,
+          "cost": 0.0003,
+          "use": ["image", "ocr"]
+        },
+        {
+          "id": "creative",
+          "name": "DeepSeek V3",
+          "model": "deepseek-chat",
+          "context": 64000,
+          "cost": 0.0001,
+          "use": ["writing", "creative"]
+        },
+        {
+          "id": "minimax",
+          "name": "MiniMax M2.5",
+          "model": "minimax-text-01",
+          "context": 128000,
+          "cost": 0.0002,
+          "use": ["code", "analysis"]
+        }
+      ]
+    }
+  },
+  
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "webhook": "/api/telegram"
+    },
+    "discord": {
+      "enabled": false,
+      "botToken": "${DISCORD_BOT_TOKEN}",
+      "webhook": "/api/discord"
+    },
+    "whatsapp": {
+      "enabled": false,
+      "provider": "twilio"
+    },
+    "email": {
+      "enabled": true,
+      "provider": "resend",
+      "apiKey": "${RESEND_API_KEY}",
+      "fromAddress": "noreply@example.com"
+    }
+  },
+  
+  "voice": {
+    "enabled": false,
+    "provider": "bland",
+    "apiKey": "${BLAND_API_KEY}"
+  },
+  
+  "gateway": {
+    "authToken": "${GATEWAY_AUTH_TOKEN}",
+    "port": 18789,
+    "host": "localhost"
+  }
+}
