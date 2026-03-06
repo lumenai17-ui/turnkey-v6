@@ -1,0 +1,32 @@
+{
+    "agent": {
+        "name": "restaurante",
+        "username": "bee-restaurante",
+        "prefix": "bee-",
+        "created_at": "2026-03-06T15:00:00Z"
+    },
+    "directories": {
+        "config": {
+            "path": "/home/bee-restaurante/.openclaw/config",
+            "permissions": "700",
+            "description": "API keys y configuración sensible"
+        },
+        "workspace": {
+            "path": "/home/bee-restaurante/.openclaw/workspace",
+            "permissions": "755",
+            "description": "Archivos de trabajo del agente"
+        },
+        "logs": {
+            "path": "/home/bee-restaurante/.openclaw/logs",
+            "permissions": "755",
+            "description": "Logs del agente"
+        },
+        "data": {
+            "path": "/home/bee-restaurante/.openclaw/data",
+            "permissions": "755",
+            "description": "Datos persistentes"
+        }
+    },
+    "groups": ["bee-restaurante"],
+    "shell": "/bin/bash"
+}

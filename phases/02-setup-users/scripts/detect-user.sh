@@ -4,8 +4,7 @@
 # TURNKEY v6 - FASE 2: SETUP USERS
 # =============================================================================
 
-set -e
-set +e
+set -euo pipefail
 
 # Colores
 RED='\033[0;31m'
@@ -57,7 +56,7 @@ detect_current_user() {
   "current_user": "$current_user",
   "uid": $uid,
   "gid": $gid,
-  "groups": "$(echo "$groups" | sed 's/\$/,/g')",
+  "groups": "$(echo "$groups" | sed 's/,$//g')",
   "is_root": $is_root,
   "has_sudo": $has_sudo,
   "sudo_nopasswd": $sudo_nopasswd,

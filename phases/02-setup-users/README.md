@@ -11,6 +11,34 @@ Configurar usuarios y permisos necesarios para el agente OpenClaw.
 
 ---
 
+## 📦 REQUISITOS
+
+### Dependencias del Sistema
+| Requisito | Versión | Notas |
+|-----------|---------|-------|
+| Bash | >= 4.0 | Shell scripts |
+| jq | >= 1.5 | Output JSON |
+| coreutils | >= 8.0 | useradd, chmod, etc. |
+
+### Dependencias de Fases
+| Fase | Archivo | Descripción |
+|------|---------|-------------|
+| FASE 1 | `turnkey-status.json` | Validación de prerequisitos (opcional) |
+
+### Permisos Requeridos
+- **root/sudo**: Necesario para crear usuarios y directorios
+
+### Glosario de Términos
+| Término | Descripción |
+|---------|-------------|
+| `useradd` | Comando para crear usuarios del sistema |
+| `chmod 700` | Permisos: solo propietario puede leer/escribir/ejecutar |
+| `chmod 755` | Permisos: propietario completo, otros solo leer/ejecutar |
+| `chpasswd` | Comando para cambiar contraseña de usuario |
+| `sudo nopasswd` | Permisos sudo sin contraseña |
+
+---
+
 ## ✅ PROGRESO
 
 | Etapa | Estado |

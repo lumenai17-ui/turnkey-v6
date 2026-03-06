@@ -50,7 +50,18 @@ Ejemplos:
 EOF
 }
 
+# Generar número aleatorio criptográficamente seguro usando /dev/urandom
+# NOTA: $RANDOM no es criptográficamente seguro, usamos /dev/urandom
+crypto_random() {
+    local max="$1"
+    local bytes=$(( (max < 256) ? 1 : 2 ))
+    local num
+    num=$(od -An -N$bytes -tu$bytes /dev/urandom | tr -d ' ')
+    echo $(( num % max ))
+}
+
 # Generar contraseña segura garantizando todos los tipos de caracteres
+# Usa /dev/urandom para máxima seguridad (no $RANDOM)
 generate_password() {
     local length="${1:-$PASSWORD_LENGTH}"
     local include_symbols="${2:-true}"
@@ -64,15 +75,16 @@ generate_password() {
     local password=""
     
     # Asegurar al menos un carácter de cada tipo requerido
+    # Usamos /dev/urandom para selección aleatoria criptográficamente segura
     # 1 mayúscula
-    password="${password}${upper:$((RANDOM % 26)):1}"
+    password="${password}${upper:$(crypto_random 26):1}"
     # 1 minúscula
-    password="${password}${lower:$((RANDOM % 26)):1}"
+    password="${password}${lower:$(crypto_random 26):1}"
     # 1 número
-    password="${password}${numbers:$((RANDOM % 10)):1}"
+    password="${password}${numbers:$(crypto_random 10):1}"
     # 1 símbolo (si aplica)
     if [[ "$include_symbols" == "true" ]]; then
-        password="${password}${symbols:$((RANDOM % 15)):1}"
+        password="${password}${symbols:$(crypto_random 15):1}"
     fi
     
     # Pool para el resto
@@ -86,13 +98,13 @@ generate_password() {
     local pool_len=${#pool}
     local i
     for ((i = 0; i < remaining; i++)); do
-        password="${password}${pool:$((RANDOM % pool_len)):1}"
+        password="${password}${pool:$(crypto_random $pool_len):1}"
     done
     
-    # Mezclar los caracteres (shuffle simple)
+    # Mezclar los caracteres (shuffle criptográficamente seguro)
     local shuffled=""
     while [[ -n "$password" ]]; do
-        local idx=$((RANDOM % ${#password}))
+        local idx=$(crypto_random ${#password})
         shuffled="${shuffled}${password:idx:1}"
         password="${password:0:idx}${password:idx+1}"
     done

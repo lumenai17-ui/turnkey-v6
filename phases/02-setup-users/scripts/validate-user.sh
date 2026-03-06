@@ -4,8 +4,7 @@
 # TURNKEY v6 - FASE 2: SETUP USERS
 # =============================================================================
 
-set -e
-set +e
+set -euo pipefail
 
 # Colores
 RED='\033[0;31m'
@@ -17,6 +16,7 @@ NC='\033[0m'
 # Valores por defecto
 AGENT_USER="$(whoami)"
 
+# Inicializar arrays (evita error si no se ejecuta validate_user)
 declare -a ISSUES=()
 declare -a WARNINGS=()
 
@@ -82,7 +82,7 @@ validate_user() {
     
     # Verificar grupos necesarios
     local groups
-    groups=$(id -Gn "$user" 2>/dev/null || echo "")
+    groups=$(id -Gn "$user" 2>/null || echo "")
     
     # Verificar sudo
     if echo "$groups" | grep -qE "sudo|wheel"; then
@@ -102,11 +102,11 @@ validate_user() {
   "uid": $uid,
   "home": "${home:-unknown}",
   "shell": "${shell:-unknown}",
-  "groups": "$(echo "$groups" | sed 's/ /,/g')",
+  "groups": "$(echo "$groups" | tr ' ' ',')",
   "valid": $valid,
   "status": "$status",
-  "issues": $(printf '%s\n' "${ISSUES[@]}" | jq -R . | jq -s . 2>/dev/null || echo "[]"),
-  "warnings": $(printf '%s\n' "${WARNINGS[@]}" | jq -R . | jq -s . 2>/dev/null || echo "[]")
+  "issues": $(printf '%s\n' "${ISSUES[@]}" 2>/dev/null | jq -R . | jq -s . 2>/dev/null || echo "[]"),
+  "warnings": $(printf '%s\n' "${WARNINGS[@]}" 2>/dev/null | jq -R . | jq -s . 2>/dev/null || echo "[]")
 }
 EOF
 }

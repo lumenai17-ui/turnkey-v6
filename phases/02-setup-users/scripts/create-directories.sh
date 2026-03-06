@@ -18,6 +18,18 @@
 set -euo pipefail
 
 # ==============================================================================
+# VALIDACIÓN DE DEPENDENCIAS (al inicio, antes de procesar)
+# ==============================================================================
+
+# Verificar que jq está disponible para output JSON
+if [[ "$*" == *"--json"* ]]; then
+    if ! command -v jq &>/dev/null; then
+        echo "Error: jq no está instalado. Instala con: sudo apt install jq"
+        exit 1
+    fi
+fi
+
+# ==============================================================================
 # CONFIGURACIÓN
 # ==============================================================================
 readonly SCRIPT_NAME="create-directories"
@@ -500,14 +512,5 @@ EOF
 # ==============================================================================
 # EJECUCIÓN
 # ==============================================================================
-
-# Verificar que jq está disponible para output JSON
-if ! command -v jq &> /dev/null; then
-    # Solo es necesario para output JSON
-    if [[ "$*" == *"--json"* ]]; then
-        echo "Error: jq no está instalado. Instala con: sudo apt install jq"
-        exit 1
-    fi
-fi
 
 main "$@"

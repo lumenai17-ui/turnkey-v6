@@ -41,11 +41,13 @@ readonly PERM_STANDARD=755
 readonly SCRIPTS_DIR="scripts"
 readonly SECRETS_DIR="secrets"
 readonly STATUS_DIR="status"
+readonly WORK_DIR="${HOME}/.openclaw/workspace/turnkey-v6"
 
 # Archivos
 readonly STATUS_FILE="users-status.json"
 readonly CREDENTIALS_FILE="credentials.enc"  # Encrypted in FASE 7
 readonly LOG_FILE="/var/log/turnkey/setup-users.log"
+readonly PHASE1_STATUS="${WORK_DIR}/phases/01-pre-flight/status/turnkey-status.json"
 
 # Colores
 readonly RED='\033[0;31m'
@@ -56,6 +58,112 @@ readonly CYAN='\033[0;36m'
 readonly MAGENTA='\033[0;35m'
 readonly BOLD='\033[1m'
 readonly NC='\033[0m'
+
+# ==============================================================================
+# VARIABLES GLOBALES PARA CLEANUP
+# ==============================================================================
+CLEANUP_USERNAME=""
+CLEANUP_CREATED_USER=false
+CLEANUP_CREATED_DIRS=false
+CLEANUP_SUCCESS=false
+
+# ==============================================================================
+# CLEANUP EN CASO DE FALLA
+# ==============================================================================
+cleanup_on_failure() {
+    # Solo limpiar si no fue exitoso
+    if [[ "$CLEANUP_SUCCESS" == "true" ]]; then
+        return 0
+    fi
+    
+    log "WARN" "Ejecutando cleanup por falla..."
+    
+    if [[ "$CLEANUP_CREATED_USER" == "true" ]]; then
+        log "WARN" "Limpiando usuario creado: $CLEANUP_USERNAME"
+        if id "$CLEANUP_USERNAME" &>/dev/null; then
+            userdel -r "$CLEANUP_USERNAME" 2>/dev/null || true
+        fi
+    fi
+    if [[ "$CLEANUP_CREATED_DIRS" == "true" ]]; then
+        log "WARN" "Limpiando directorios creados"
+        local home_dir="/home/${CLEANUP_USERNAME}/.openclaw"
+        rm -rf "$home_dir" 2>/dev/null || true
+    fi
+}
+
+# Marcar como exitoso al final
+mark_success() {
+    CLEANUP_SUCCESS=true
+}
+
+# Registrar trap para cleanup
+trap cleanup_on_failure EXIT ERR
+
+# ==============================================================================
+# VALIDACIÓN DE DEPENDENCIAS Y FASES
+# ==============================================================================
+validate_phase1() {
+    log "STEP" "Validando FASE 1..."
+    
+    # Validar que existe el archivo de estado de FASE 1
+    if [[ ! -f "$PHASE1_STATUS" ]]; then
+        log "WARN" "FASE 1 no detectada (turnkey-status.json no encontrado)"
+        log "INFO" "Continuando sin validación de prerequisitos..."
+        return 0  # No es fatal, permitir continuar
+    fi
+    
+    # Validar que jq está disponible
+    if ! command -v jq &>/dev/null; then
+        log "WARN" "jq no instalado, no se puede validar FASE 1"
+        return 0
+    fi
+    
+    # Validar el estado de FASE 1
+    local status
+    status=$(jq -r '.status // "unknown"' "$PHASE1_STATUS" 2>/dev/null || echo "unknown")
+    
+    if [[ "$status" != "passed" ]] && [[ "$status" != "completed" ]]; then
+        log "WARN" "FASE 1 tiene estado: $status"
+        log "INFO" "Se recomienda completar FASE 1 antes de continuar"
+        return 0  # No es fatal, permitir continuar
+    fi
+    
+    log "INFO" "FASE 1 validada correctamente: $status"
+    return 0
+}
+
+validate_dependencies() {
+    log "STEP" "Validando dependencias del sistema..."
+    
+    local missing=()
+    
+    # Verificar comandos necesarios
+    if ! command -v useradd &>/dev/null; then
+        missing+=("useradd")
+    fi
+    if ! command -v usermod &>/dev/null; then
+        missing+=("usermod")
+    fi
+    if ! command -v chpasswd &>/dev/null; then
+        missing+=("chpasswd")
+    fi
+    
+    # Validar jq solo si se va a usar output JSON
+    if [[ "$*" == *"--json"* ]]; then
+        if ! command -v jq &>/dev/null; then
+            missing+=("jq")
+        fi
+    fi
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log "ERROR" "Dependencias faltantes: ${missing[*]}"
+        log "INFO" "Instala con: sudo apt install passwd jq"
+        exit 1
+    fi
+    
+    log "INFO" "Todas las dependencias están disponibles"
+    return 0
+}
 
 # ==============================================================================
 # FUNCIONES DE UTILIDAD
@@ -154,11 +262,27 @@ Archivos de salida:
 EOF
 }
 
-# Banner de éxito
+# Banner de éxito (contraseña enmascarada por seguridad)
 show_success_banner() {
     local agent_name="$1"
     local username="$2"
     local password="$3"
+    local show_password="${4:-false}"  # Solo mostrar si --show-password
+    
+    # Enmascarar contraseña por defecto (solo mostrar longitud)
+    local masked_password="********"
+    local password_length=${#password}
+    
+    # Si se solicita mostrar la contraseña, mostrar primeros 3 y últimos 3 caracteres
+    if [[ "$show_password" == "true" ]]; then
+        if [[ $password_length -gt 6 ]]; then
+            local first="${password:0:3}"
+            local last="${password: -3}"
+            masked_password="${first}***${last}"
+        else
+            masked_password="***"
+        fi
+    fi
     
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
@@ -169,9 +293,17 @@ show_success_banner() {
     echo -e "${GREEN}║  Home:        ${CYAN}/home/${username}${NC}"
     echo -e "${GREEN}║  OpenClaw:    ${CYAN}/home/${username}/.openclaw/${NC}"
     echo -e "${GREEN}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${GREEN}║  ${YELLOW}⚠ CONTRASEÑA:${NC} ${CYAN}${password}${NC}"
+    if [[ "$show_password" == "true" ]]; then
+        echo -e "${GREEN}║  ${YELLOW}Contraseña:   ${CYAN}${masked_password}${NC}"
+    else
+        echo -e "${GREEN}║  ${YELLOW}Contraseña:   ${masked_password} (${password_length} caracteres)${NC}"
+    fi
     echo -e "${GREEN}║                                                               ║${NC}"
-    echo -e "${GREEN}║  ${YELLOW}[IMPORTANTE] Guarda esta contraseña de forma segura${NC}         ║${NC}"
+    echo -e "${GREEN}║  ${YELLOW}📋 Credenciales guardadas en:${NC}"
+    echo -e "${GREEN}║     ${CYAN}secrets/${username}.json${NC}"
+    echo -e "${GREEN}║                                                               ║${NC}"
+    echo -e "${GREEN}║  ${YELLOW}[IMPORTANTE] Revisa el archivo de credenciales${NC}            ${NC}"
+    echo -e "${GREEN}║  Usa --show-password para ver la contraseña${NC}              ${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -528,6 +660,10 @@ main() {
         esac
     done
     
+    # Validaciones iniciales
+    validate_phase1
+    validate_dependencies "$@"
+    
     show_header
     
     # Modo interactivo si no se especificó nombre
@@ -628,6 +764,9 @@ main() {
     echo ""
     log_success "FASE 2 completada exitosamente"
     echo ""
+    
+    # Marcar como exitoso para evitar cleanup
+    mark_success
     
     exit 0
 }

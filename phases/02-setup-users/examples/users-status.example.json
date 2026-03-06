@@ -1,0 +1,25 @@
+{
+    "phase": "02-setup-users",
+    "script": "setup-users",
+    "version": "6.0.0",
+    "timestamp": "2026-03-06T15:00:00Z",
+    "agent": {
+        "name": "restaurante",
+        "username": "bee-restaurante",
+        "prefix": "bee-"
+    },
+    "status": "passed",
+    "message": "Usuario creado exitosamente",
+    "dry_run": false,
+    "directories": {
+        "config": "/home/bee-restaurante/.openclaw/config",
+        "workspace": "/home/bee-restaurante/.openclaw/workspace",
+        "logs": "/home/bee-restaurante/.openclaw/logs",
+        "data": "/home/bee-restaurante/.openclaw/data"
+    },
+    "permissions": {
+        "config": "700",
+        "standard": "755"
+    },
+    "next_phase": "03-gateway-install"
+}
