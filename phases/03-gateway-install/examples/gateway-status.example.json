@@ -1,0 +1,25 @@
+{
+    "phase": "03-gateway-install",
+    "script": "gateway-install",
+    "version": "6.0.0",
+    "timestamp": "2026-03-06T15:30:00Z",
+    "status": "passed",
+    "checks": [
+        {"name": "node_version", "status": "passed", "value": "v20.10.0"},
+        {"name": "npm_version", "status": "passed", "value": "10.2.3"},
+        {"name": "port_available", "status": "passed", "value": "18789"},
+        {"name": "api_key_valid", "status": "passed"},
+        {"name": "gateway_installed", "status": "not_installed"},
+        {"name": "gateway_config", "status": "created"}
+    ],
+    "warnings": [],
+    "errors": [],
+    "gateway": {
+        "name": "openclaw-gateway",
+        "host": "localhost",
+        "port": 18789,
+        "configFile": "~/.openclaw/config/gateway.json",
+        "serviceFile": "~/.config/systemd/user/openclaw-gateway.service"
+    },
+    "next_phase": "04-identity-fleet"
+}

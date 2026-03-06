@@ -4,8 +4,13 @@
 # TURNKEY v6 - FASE 3: GATEWAY INSTALL
 # =============================================================================
 
-set -e
-set +e
+set -euo pipefail
+
+# Colores
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly NC='\033[0m'
 
 # Valores por defecto
 API_KEY="${OLLAMA_API_KEY:-}"

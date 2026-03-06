@@ -1,0 +1,40 @@
+{
+    "gateway": {
+        "name": "openclaw-gateway",
+        "version": "6.0.0",
+        "host": "localhost",
+        "port": 18789,
+        "logLevel": "info"
+    },
+    "api": {
+        "ollama": {
+            "enabled": true,
+            "apiKey": "os_YOUR_API_KEY_HERE",
+            "baseUrl": "https://api.ollama.cloud/v1"
+        }
+    },
+    "channels": {
+        "telegram": {
+            "enabled": true,
+            "token": ""
+        },
+        "whatsapp": {
+            "enabled": true,
+            "sessionId": "default"
+        },
+        "discord": {
+            "enabled": true,
+            "token": ""
+        }
+    },
+    "memory": {
+        "enabled": true,
+        "path": "~/.openclaw/data/memory"
+    },
+    "logging": {
+        "path": "~/.openclaw/logs",
+        "level": "info",
+        "maxSize": "10M",
+        "maxFiles": 5
+    }
+}

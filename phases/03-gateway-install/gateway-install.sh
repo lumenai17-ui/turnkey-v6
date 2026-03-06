@@ -4,22 +4,34 @@
 # TURNKEY v6
 # =============================================================================
 
-set -e
-set +e  # Ignorar errores no críticos
+set -euo pipefail
+
+# =============================================================================
+# CORRECCIONES APLICADAS:
+# - Cambiado 'set -e; set +e' → 'set -euo pipefail' (manejo de errores robusto)
+# - Agregado trap para cleanup en caso de falla
+# - Agregada validación de FASE 1 y FASE 2
+# - Agregada validación de puerto numérico
+# - Agregada validación de binary antes de crear service
+# - Enmascarada API key en logs
+# =============================================================================
 
 VERSION="6.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
+PHASE1_STATUS="${HOME}/.openclaw/workspace/turnkey-v6/phases/01-pre-flight/status/turnkey-status.json"
+PHASE2_STATUS="${HOME}/.openclaw/users-status.json"
+WORK_DIR="${HOME}/.openclaw"
 
 # Colores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly CYAN='\033[0;36m'
+readonly NC='\033[0m'
 
-# Valores por defecto
+# Valores por defecto (readonly después de parse)
 GATEWAY_PORT="${GATEWAY_PORT:-18789}"
 GATEWAY_HOST="${GATEWAY_HOST:-localhost}"
 OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
@@ -31,6 +43,47 @@ CONFIG_FILE=""
 declare -a WARNINGS=()
 declare -a ERRORS=()
 declare -a CHECKS=()
+
+# Variables para cleanup
+CLEANUP_CONFIG=false
+CLEANUP_SERVICE=false
+CLEANUP_SUCCESS=false
+
+# =============================================================================
+# CLEANUP EN CASO DE FALLA
+# =============================================================================
+
+cleanup_on_failure() {
+    # Solo limpiar si no fue exitoso
+    if [[ "$CLEANUP_SUCCESS" == "true" ]]; then
+        return 0
+    fi
+    
+    log_warn "Ejecutando cleanup por falla..."
+    
+    if [[ "$CLEANUP_CONFIG" == "true" ]]; then
+        local config_file="${HOME}/.openclaw/config/gateway.json"
+        if [[ -f "$config_file" ]]; then
+            log_warn "Eliminando configuración incompleta: $config_file"
+            rm -f "$config_file" 2>/dev/null || true
+        fi
+    fi
+    
+    if [[ "$CLEANUP_SERVICE" == "true" ]]; then
+        local service_file="${HOME}/.config/systemd/user/openclaw-gateway.service"
+        if [[ -f "$service_file" ]]; then
+            log_warn "Eliminando service incompleto: $service_file"
+            rm -f "$service_file" 2>/dev/null || true
+            systemctl --user daemon-reload 2>/dev/null || true
+        fi
+    fi
+}
+
+mark_success() {
+    CLEANUP_SUCCESS=true
+}
+
+trap cleanup_on_failure EXIT ERR
 
 # -----------------------------------------------------------------------------
 # FUNCIONES DE LOGGING
@@ -87,11 +140,92 @@ parse_args() {
         esac
     done
     
+    # Validar puerto como número
+    if ! [[ "$GATEWAY_PORT" =~ ^[0-9]+$ ]]; then
+        log_error "Puerto debe ser numérico: $GATEWAY_PORT"
+        exit 1
+    fi
+    if [[ "$GATEWAY_PORT" -lt 1024 ]] || [[ "$GATEWAY_PORT" -gt 65535 ]]; then
+        log_error "Puerto fuera de rango válido (1024-65535): $GATEWAY_PORT"
+        exit 1
+    fi
+    
     # Cargar config desde archivo si existe
     if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
         log_info "Cargando configuración desde: $CONFIG_FILE"
         # TODO: Parsear JSON
     fi
+    
+    # Hacer variables readonly después de parsear
+    readonly GATEWAY_PORT GATEWAY_HOST SKIP_INSTALL DRY_RUN
+}
+
+# -----------------------------------------------------------------------------
+# VALIDAR FASES PREVIAS
+# -----------------------------------------------------------------------------
+
+validate_phase1() {
+    log_info "=== VALIDANDO FASE 1 (PRE-FLIGHT) ==="
+    
+    if [[ ! -f "$PHASE1_STATUS" ]]; then
+        log_warn "FASE 1 no detectada (turnkey-status.json no encontrado)"
+        log_warn "Se recomienda ejecutar FASE 1 antes de continuar"
+        # No es fatal, permitir continuar
+        return 0
+    fi
+    
+    if command -v jq &>/dev/null; then
+        local status
+        status=$(jq -r '.status // "unknown"' "$PHASE1_STATUS" 2>/dev/null || echo "unknown")
+        
+        if [[ "$status" != "passed" ]] && [[ "$status" != "completed" ]]; then
+            log_warn "FASE 1 tiene estado: $status"
+            log_warn "Se recomienda completar FASE 1"
+        else
+            log_ok "FASE 1 validada: $status"
+        fi
+    else
+        log_warn "jq no disponible, no se puede validar FASE 1"
+    fi
+}
+
+validate_phase2() {
+    log_info "=== VALIDANDO Fase 2 (SETUP USERS) ==="
+    
+    local required_dirs=(
+        "${WORK_DIR}"
+        "${WORK_DIR}/config"
+        "${WORK_DIR}/logs"
+        "${WORK_DIR}/data"
+    )
+    
+    local missing_dirs=()
+    
+    for dir in "${required_dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            missing_dirs+=("$dir")
+        fi
+    done
+    
+    if [[ ${#missing_dirs[@]} -gt 0 ]]; then
+        log_error "Directorios de FASE 2 faltantes:"
+        for dir in "${missing_dirs[@]}"; do
+            log_error "  - $dir"
+        done
+        log_error ""
+        log_error "Ejecute primero: FASE 2 (setup-users)"
+        log_error "O use: mkdir -p ${missing_dirs[*]}"
+        exit 1
+    fi
+    
+    # Verificar users-status.json
+    if [[ -f "$PHASE2_STATUS" ]]; then
+        log_ok "FASE 2 detectada"
+    else
+        log_warn "users-status.json no encontrado (FASE 2 puede no haberse ejecutado)"
+    fi
+    
+    log_ok "Directorios de FASE 2 validados"
 }
 
 # -----------------------------------------------------------------------------
@@ -101,7 +235,7 @@ parse_args() {
 check_requirements() {
     log_info "=== VERIFICANDO REQUISITOS ==="
     
-    # Node.js
+    # Node.js (CRÍTICO)
     if command -v node &>/dev/null; then
         local node_version
         node_version=$(node --version 2>/dev/null | sed 's/v//')
@@ -257,9 +391,13 @@ configure_gateway() {
             log_warn "[DRY-RUN] Se crearían: $config_dir"
         else
             mkdir -p "$config_dir"
-            log_ok "Creado: $config_dir"
+            chmod 700 "$config_dir"
+            log_ok "Creado: $config_dir (permisos 700)"
         fi
     fi
+    
+    # Marcar para cleanup en caso de falla
+    CLEANUP_CONFIG=true
     
     # Crear configuración
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -307,7 +445,9 @@ configure_gateway() {
   }
 }
 EOF
-        log_ok "Creado: $config_file"
+        # Permisos restrictivos para proteger API key
+        chmod 600 "$config_file"
+        log_ok "Creado: $config_file (permisos 600)"
         CHECKS+=("{\"name\": \"gateway_config\", \"status\": \"created\"}")
     fi
     
@@ -323,6 +463,23 @@ create_systemd_service() {
     
     local service_dir="${HOME}/.config/systemd/user"
     local service_file="${service_dir}/openclaw-gateway.service"
+    
+    # Marcar para cleanup
+    CLEANUP_SERVICE=true
+    
+    # Verificar que systemd está disponible
+    if ! command -v systemctl &>/dev/null; then
+        log_warn "systemd no disponible - El service se creará pero no se habilitará"
+        WARNINGS+=("systemd no disponible")
+    fi
+    
+    # Verificar que el binary existe
+    local binary_path="/usr/local/bin/openclaw-gateway"
+    if [[ ! -x "$binary_path" ]]; then
+        log_warn "Binary no encontrado: $binary_path"
+        log_warn "El service se creará pero no podrá iniciar hasta que se instale el binary"
+        WARNINGS+=("Binary no encontrado")
+    fi
     
     # Crear directorio si no existe
     if [[ ! -d "$service_dir" ]]; then
@@ -456,12 +613,37 @@ main() {
     [[ "$DRY_RUN" == "true" ]] && log_warn "MODO DRY-RUN - No se harán cambios"
     echo ""
     
+    # Validar fases previas (CRÍTICO - agregado en corrección)
+    validate_phase1
+    validate_phase2
+    
+    # Validar requisitos del sistema
     check_requirements
+    
+    # Abortar si hay errores críticos
+    if [[ ${#ERRORS[@]} -gt 0 ]]; then
+        log_error "Se encontraron errores críticos. Corríjalos antes de continuar."
+        for error in "${ERRORS[@]}"; do
+            log_error "  - $error"
+        done
+        exit 1
+    fi
+    
+    # Detectar gateway existente
     detect_gateway || true
+    
+    # Validar API key
     validate_api_key
+    
+    # Configurar gateway
     configure_gateway
     create_systemd_service
     generate_report
+    
+    # Marcar como exitoso para evitar cleanup
+    mark_success
+    
+    log_ok "FASE 3 completada exitosamente"
 }
 
 main "$@"

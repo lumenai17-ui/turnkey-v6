@@ -4,8 +4,7 @@
 # TURNKEY v6 - FASE 3: GATEWAY INSTALL
 # =============================================================================
 
-set -e
-set +e
+set -euo pipefail
 
 # Colores
 RED='\033[0;31m'
