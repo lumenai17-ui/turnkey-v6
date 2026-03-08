@@ -1,7 +1,7 @@
 # Skills Bundles - TURNKEY v6
 
-**Versión:** 1.0.0
-**Fecha:** 2026-03-05
+**Versión:** 2.0.0 — Agente en Mano
+**Fecha:** 2026-03-07
 **Área:** FASE 4 - ÁREA 6 - SKILLS BUNDLES
 
 ---
@@ -12,8 +12,9 @@
 |-----------|------------|
 | **Skills Bundles** | Conjuntos preconfigurados de habilidades específicas por tipo de negocio |
 | **Habilidades Natas** | 14 habilidades básicas que TODO agente debe tener |
-| **Habilidades CORE** | 25 habilidades que funcionan SIEMPRE (proveemos API) |
-| **Habilidades OPCIONALES** | 14 habilidades que requieren API key del cliente |
+| **Habilidades Built-in** | **58 habilidades** que funcionan SIEMPRE (nosotros proveemos todo) |
+| **Automatizaciones** | 20 automatizaciones pre-configuradas |
+| **Costo** | ~$22/mes por agente |
 
 ---
 
@@ -41,7 +42,7 @@ Un **Skill Bundle** es un paquete preconfigurado de capacidades específicas dis
     "horarios": "Puedo informar sobre horarios de atención..."
   },
   "intents": {
-    "menu": ["¿quétienen?", "menú", "carta", "platos", "comida"],
+    "menu": ["¿qué tienen?", "menú", "carta", "platos", "comida"],
     "reservas": ["reservar", "mesa", "reservación", "disponibilidad"],
     "pedidos": ["pedir", "ordenar", "orden", "delivery", "llevar"]
   }
@@ -50,72 +51,76 @@ Un **Skill Bundle** es un paquete preconfigurado de capacidades específicas dis
 
 ---
 
-## 2️⃣ DIFERENCIA: SKILLS BUNDLES vs HABILIDADES NATAS
+## 2️⃣ HABILIDADES DEL AGENTE
 
-### Comparación Detallada
+### Habilidades Natas (14 Obligatorias) — TODAS BUILT-IN
 
-| Aspecto | Skills Bundles | Habilidades Natas |
-|---------|----------------|-------------------|
-| **Propósito** | Capacidades específicas de negocio | Capacidades básicas comunes |
-| **Configuración** | Pre-configurado por tipo de negocio | Siempre presentes |
-| **Personalización** | Custom prompts + intents | Genéricas, sin personalización |
-| **Dependencias** | Requieren skills base | Independientes |
-| **Cantidad** | Variables según negocio | 14 fijas, obligatorias |
-| **Ejemplos** | menu_parse, reservations, orders | email_send, pdf_generate |
+| # | Habilidad | Función | Procesamiento | Estado |
+|---|-----------|---------|---------------|--------|
+| 1 | email_send | Enviar emails | ⚙️ Local (Postfix — nuestro dominio) | ✅ Siempre |
+| 2 | email_read | Leer emails | ⚙️ Local (Dovecot IMAP) | ✅ Siempre |
+| 3 | voice_send | Enviar voice notes | 🎬 Deepgram Aura TTS ($3/M chars) | ✅ Siempre |
+| 4 | voice_receive | Recibir voice notes | 🎬 Deepgram Nova STT ($0.006/min) | ✅ Siempre |
+| 5 | audio_transcribe | Transcribir audio | 🎬 Deepgram Nova STT ($0.006/min) | ✅ Siempre |
+| 6 | image_generate | Crear imágenes | 🎬 Stable Diffusion API ($0.01/img) | ✅ Siempre |
+| 7 | image_receive | Analizar imágenes | ☁️ Ollama Cloud Vision | ✅ Siempre |
+| 8 | pdf_generate | Crear PDFs | ⚙️ Local (wkhtmltopdf) | ✅ Siempre |
+| 9 | pdf_read | Leer PDFs | ⚙️ Local (pdftotext) | ✅ Siempre |
+| 10 | video_process | Procesar video | ☁️ Ollama Cloud | ✅ Siempre |
+| 11 | location | Ubicación/maps | 🔗 Google Maps API (nuestra key) | ✅ Siempre |
+| 12 | calendar | Google Calendar | 🔗 Google Calendar API (cuenta cliente) | ✅ Siempre |
+| 13 | sheets | Google Sheets | 🔗 Google Sheets API (cuenta cliente) | ✅ Siempre |
+| 14 | translate | Traducción | ☁️ Ollama Cloud | ✅ Siempre |
 
-### Habilidades Natas (14 Obligatorias)
-
-| # | Habilidad | Función | Estado |
-|---|-----------|---------|--------|
-| 1 | email_send | Enviar emails | ✅ Siempre |
-| 2 | email_read | Leer emails | ✅ Siempre |
-| 3 | voice_send | Enviar voice notes | 🔧 API key |
-| 4 | voice_receive | Recibir voice notes | 🔧 API key |
-| 5 | audio_process | Procesar audio | 🔧 API key |
-| 6 | image_generate | Crear imágenes | 🔧 API key |
-| 7 | image_receive | Analizar imágenes | ✅ Siempre |
-| 8 | pdf_generate | Crear PDFs | ✅ Siempre |
-| 9 | pdf_read | Leer PDFs | ✅ Siempre |
-| 10 | video_process | Procesar video | ✅ Siempre |
-| 11 | location | Ubicación/maps | 🔧 API key |
-| 12 | calendar | Google Calendar | 🔧 OAuth |
-| 13 | sheets | Google Sheets | 🔧 OAuth |
-| 14 | translate | Traducción | 🔧 API key |
-
-### Habilidades CORE (25 que SIEMPRE funcionan)
-
-Son habilidades que nosotros proveemos con nuestras APIs compartidas:
+### Habilidades Built-in Restantes (44) — TODAS funcionan siempre
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    HABILIDADES CORE (25)                             │
-│                  Funcionan SIEMPRE - Proveemos API                   │
+│          HABILIDADES BUILT-IN (58 total = 14 natas + 44)           │
+│            Todas funcionan SIEMPRE — Nosotros proveemos            │
 ├─────────────────────────────────────────────────────────────────────┤
-│ DOCUMENTOS (7)                                                      │
-│   • pdf_generate    • pdf_read      • pdf_edit                       │
-│   • doc_generate    • excel_generate • excel_read                    │
-│   • presentation_create                                              │
+│ COMUNICACIÓN ADICIONAL (4)                                         │
+│   • sms_send         • whatsapp_send                               │
+│   • telegram_send    • discord_send                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ EMAIL (2)                                                            │
-│   • email_send     • email_read                                      │
+│ MULTIMEDIA (4)                                                     │
+│   • image_edit (SD img2img)    • video_create (Kling 2.1/fal.ai)  │
+│   • video_edit (FFmpeg local)  • ocr (Ollama Cloud Vision)        │
 ├─────────────────────────────────────────────────────────────────────┤
-│ VIDEO (2)                                                            │
-│   • video_process  • video_edit                                      │
+│ DOCUMENTOS (5)                                                     │
+│   • pdf_edit (qpdf)         • doc_generate (pandoc)               │
+│   • excel_generate          • excel_read (openpyxl)               │
+│   • presentation_create (python-pptx)                              │
 ├─────────────────────────────────────────────────────────────────────┤
-│ AUTOMATIZACIÓN (5)                                                   │
-│   • browser         • scraping      • forms                          │
-│   • cron            • webhook                                        │
+│ WEB & AUTOMATIZACIÓN (8)                                           │
+│   • browser (Puppeteer)     • scraping (Puppeteer+cheerio)        │
+│   • web_search (Brave free) • web_fetch (curl/fetch)              │
+│   • web_create (templates)  • form_create (HTML templates)        │
+│   • cron (cron/systemd)     • webhook (HTTP server)               │
 ├─────────────────────────────────────────────────────────────────────┤
-│ COMUNICACIÓN (4)                                                     │
-│   • sms_send        • whatsapp_send • telegram_send                  │
-│   • discord_send                                                     │
+│ INTELIGENCIA (6)                                                   │
+│   • summarize       • extract_data     • sentiment                │
+│   • memory_search   • classify         • rewrite                  │
+│   (Todas ☁️ Ollama Cloud)                                          │
 ├─────────────────────────────────────────────────────────────────────┤
-│ NEGOCIO (3)                                                          │
-│   • invoice_generate • report_generate • qrcode_generate             │
+│ NEGOCIO (6)                                                        │
+│   • invoice_generate  • report_generate  • qrcode_generate        │
+│   • qrcode_read       • metrics_dashboard • notifications         │
+│   • reviews_monitor                                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│ PRODUCTIVIDAD (4)                                                    │
-│   • summarize       • extract_data   • sentiment                     │
-│   • ocr                                                               │
+│ EMAIL MARKETING (4)                                                │
+│   • newsletter_send   • email_templates                           │
+│   • email_tracking    • email_drip                                │
+│   (Postfix SMTP local)                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ CÓDIGO (3)                                                         │
+│   • code_execute (sandbox) • git_commit   • repo_read             │
+├─────────────────────────────────────────────────────────────────────┤
+│ PRODUCTIVIDAD (2)                                                  │
+│   • reminders (cron + canales) • tasks (Sistema)                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ GOOGLE WORKSPACE (1 adicional)                                     │
+│   • directions (Google Maps API — nuestra key)                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -150,7 +155,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "available": "¡Perfecto! Tenemos disponibilidad para {people} personas el {date} a las {time}.",
         "unavailable": "Lo siento, no tenemos disponibilidad para esa fecha. ¿Te gustaría probar otro día?"
       },
-      "requires": ["calendar", "forms"]
+      "requires": ["calendar", "form_create"]
     },
     {
       "id": "orders",
@@ -161,7 +166,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "confirm": "Tu orden incluye: {items}. Total: {total}. ¿Confirmas?",
         "sent": "¡Orden confirmada! Tiempo estimado: {estimated_time} minutos."
       },
-      "requires": ["forms", "pdf_generate"]
+      "requires": ["form_create", "pdf_generate"]
     },
     {
       "id": "hours",
@@ -182,7 +187,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "zones": "Hacemos delivery a: {zones}. Costo de envío: {delivery_cost}.",
         "eta": "Tiempo estimado de entrega: {eta} minutos."
       },
-      "requires": ["location", "forms"]
+      "requires": ["location", "directions", "form_create"]
     },
     {
       "id": "faq",
@@ -196,11 +201,11 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
       "name": "Contacto",
       "description": "Información de contacto",
       "intents": ["teléfono", "dirección", "ubicación", "contacto", "¿dónde están?"],
-      "requires": ["location"]
+      "requires": ["location", "directions"]
     }
   ],
   "total_skills": 7,
-  "dependencies_natas": ["email_send", "pdf_generate", "calendar", "forms", "location"]
+  "dependencies_builtin": ["email_send", "pdf_generate", "calendar", "form_create", "location", "directions"]
 }
 ```
 
@@ -220,7 +225,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "available": "Tenemos disponibilidad para {nights} noches en {room_type}. Precio: {price}/noche.",
         "unavailable": "Lo siento, no tenemos disponibilidad para esas fechas."
       },
-      "requires": ["calendar", "forms"]
+      "requires": ["calendar", "form_create"]
     },
     {
       "id": "availability",
@@ -252,7 +257,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
       "name": "Contacto",
       "description": "Información del hotel",
       "intents": ["teléfono", "dirección", "ubicación", "contacto"],
-      "requires": ["location"]
+      "requires": ["location", "directions"]
     },
     {
       "id": "hours",
@@ -263,7 +268,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
     }
   ],
   "total_skills": 6,
-  "dependencies_natas": ["email_send", "calendar", "forms", "location", "pdf_generate"]
+  "dependencies_builtin": ["email_send", "calendar", "form_create", "location", "directions", "pdf_generate"]
 }
 ```
 
@@ -305,7 +310,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "cart": "Tu carrito tiene {items}. Total: {total}.",
         "checkout": "Pedido confirmado. Número de orden: {order_number}."
       },
-      "requires": ["forms", "pdf_generate"]
+      "requires": ["form_create", "pdf_generate"]
     },
     {
       "id": "payments",
@@ -329,7 +334,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
       "id": "faq",
       "name": "Preguntas Frecuentes",
       "description": "FAQ de la tienda",
-      "intents": ["devoluciones", "garantía", "envíos", " horario"],
+      "intents": ["devoluciones", "garantía", "envíos", "horario"],
       "requires": ["extract_data"]
     },
     {
@@ -341,7 +346,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
     }
   ],
   "total_skills": 7,
-  "dependencies_natas": ["email_send", "pdf_generate", "excel_read", "forms", "location"]
+  "dependencies_builtin": ["email_send", "pdf_generate", "excel_read", "form_create", "location"]
 }
 ```
 
@@ -361,7 +366,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
         "available": "Tenemos disponibilidad el {date} a las {time}. ¿Confirmas?",
         "confirm": "Cita confirmada para {date} a las {time} con {professional}."
       },
-      "requires": ["calendar", "forms"]
+      "requires": ["calendar", "form_create"]
     },
     {
       "id": "calendar",
@@ -378,14 +383,14 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
       "responses": {
         "set": "Recordatorio configurado para {date}. Te avisaré {hours_before} horas antes."
       },
-      "requires": ["cron", "sms_send", "email_send"]
+      "requires": ["cron", "sms_send", "email_send", "reminders"]
     },
     {
       "id": "followup",
       "name": "Seguimiento",
       "description": "Seguimiento post-servicio",
       "intents": ["seguimiento", "¿cómo quedó?", "resultado"],
-      "requires": ["email_send", "forms"]
+      "requires": ["email_send", "form_create"]
     },
     {
       "id": "faq",
@@ -403,7 +408,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
     }
   ],
   "total_skills": 6,
-  "dependencies_natas": ["email_send", "calendar", "forms", "cron", "sms_send"]
+  "dependencies_builtin": ["email_send", "calendar", "form_create", "cron", "sms_send", "reminders"]
 }
 ```
 
@@ -440,7 +445,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
       "name": "Ubicación",
       "description": "Mostrar ubicación y mapa",
       "intents": ["ubicación", "¿dónde están?", "dirección", "mapa", "llegar"],
-      "requires": ["location"]
+      "requires": ["location", "directions"]
     },
     {
       "id": "general",
@@ -451,7 +456,7 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
     }
   ],
   "total_skills": 5,
-  "dependencies_natas": ["location", "pdf_read", "extract_data"]
+  "dependencies_builtin": ["location", "directions", "pdf_read", "extract_data"]
 }
 ```
 
@@ -464,19 +469,19 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
 ```
 ~/.openclaw/
 ├── config/
-│   ├── skills-core.json        # 25 habilidades CORE (siempre funcionan)
-│   ├── skills-optional.json     # 14 habilidades opcionales (requieren API)
-│   ├── skills-bundle.json       # Bundle seleccionado según negocio
-│   └── SKILLS.md                # Documentación completa
+│   ├── skills-builtin.json     # 58 habilidades BUILT-IN (todas funcionan)
+│   ├── skills-bundle.json      # Bundle seleccionado según negocio
+│   ├── automatizaciones-builtin.json  # 20 automatizaciones
+│   └── SKILLS.md               # Documentación completa
 │
 ├── knowledge/
-│   ├── menu/                    # Menú (para restaurantes)
+│   ├── menu/                   # Menú (para restaurantes)
 │   │   └── menu.pdf
-│   ├── products/                # Productos (para tiendas)
+│   ├── products/               # Productos (para tiendas)
 │   │   └── catalog.xlsx
-│   ├── services/                # Servicios (para profesionales)
+│   ├── services/               # Servicios (para profesionales)
 │   │   └── services.pdf
-│   └── faq/                     # FAQ común
+│   └── faq/                    # FAQ común
 │       └── faq.json
 │
 └── prompts/
@@ -503,23 +508,22 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
 ```json
 {
   "skills": {
-    "core": {
+    "builtin": {
       "enabled": true,
-      "source": "config/skills-core.json",
-      "total": 25
+      "source": "config/skills-builtin.json",
+      "total": 58,
+      "model": "agente-en-mano"
     },
-    "optional": {
-      "enabled": "partial",
-      "source": "config/skills-optional.json",
-      "configured": ["image_receive", "voice_receive"],
-      "pending": ["calendar", "sheets", "location"]
+    "automations": {
+      "enabled": true,
+      "source": "config/automatizaciones-builtin.json",
+      "total": 20
     },
     "bundle": {
       "type": "restaurante",
       "source": "config/skills-bundle.json",
       "skills": ["menu", "reservas", "pedidos", "horarios", "delivery"]
-    },
-    "nativeSkills": "auto"
+    }
   }
 }
 ```
@@ -528,33 +532,33 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                  FLUJO DE SKILLS BUNDLE                              │
+│               FLUJO DE SKILLS — Agente en Mano v2.0                │
 ├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  1. SETUP INICIAL                                                    │
+│                                                                     │
+│  1. SETUP INICIAL                                                   │
 │     └── ./setup-skills.sh --agent-name "nombre" --business-type "X" │
-│         └── Carga bundle según tipo de negocio                       │
-│             └── Carga skills CORE (25)                               │
-│                 └── Carga skills OPCIONALES (14)                     │
-│                                                                       │
-│  2. KNOWLEDGE PROCESSING                                             │
-│     └── Carga documentos del negocio                                 │
-│         └── Menu (restaurantes)                                      │
-│         └── Productos (tiendas)                                      │
-│         └── Servicios (profesionales)                                │
-│         └── FAQ genérico                                             │
-│                                                                       │
-│  3. ACTIVACIÓN                                                       │
-│     └── Skills habilitadas según configuración                        │
-│         └── CORE: Siempre activas                                    │
-│         └── OPCIONALES: Activas si hay API key                       │
-│         └── BUNDLE: Activas según tipo de negocio                    │
-│                                                                       │
-│  4. EJECUCIÓN                                                        │
-│     └── Usuario pregunta → Intent detection                          │
-│         └── Skill seleccionada → Response generada                  │
-│             └── Acción ejecutada si aplica                          │
-│                                                                       │
+│         └── Carga 58 skills BUILT-IN (un solo JSON)                │
+│             └── Vincula 20 automatizaciones                        │
+│                 └── Selecciona bundle de negocio                   │
+│                                                                     │
+│  2. KNOWLEDGE PROCESSING                                           │
+│     └── Carga documentos del negocio                               │
+│         └── Menu (restaurantes)                                    │
+│         └── Productos (tiendas)                                    │
+│         └── Servicios (profesionales)                              │
+│         └── FAQ genérico                                           │
+│                                                                     │
+│  3. ACTIVACIÓN                                                     │
+│     └── TODAS las skills se activan automáticamente                │
+│         └── 58 BUILT-IN: Siempre activas                          │
+│         └── 20 AUTOMATIONS: Siempre disponibles                   │
+│         └── BUNDLE: Activas según tipo de negocio                 │
+│                                                                     │
+│  4. EJECUCIÓN                                                      │
+│     └── Usuario pregunta → Intent detection                        │
+│         └── Skill seleccionada → Response generada                │
+│             └── Acción ejecutada si aplica                        │
+│                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -567,35 +571,37 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
 | Tipo | Cantidad | Configuración | Ejemplos |
 |------|----------|---------------|----------|
 | **Habilidades Natas** | 14 | Siempre presentes | email, voice, images, translate |
-| **Habilidades CORE** | 25 | Proveemos API | pdf, video, sms, browser |
-| **Habilidades OPCIONALES** | 14 | Cliente configura | DALL-E, Suno, DeepL |
+| **Habilidades Built-in** | 58 | Todas funcionan siempre | pdf, video, sms, browser, classify, rewrite |
+| **Automatizaciones** | 20 | Pre-configuradas | post_creator, invoice_autopilot, daily_report |
 | **Skills Bundle** | 5-7/negocio | Por tipo de negocio | menu, reservations, orders |
 
-### Costo de APIs Compartidas
+### Costo por Agente/mes
 
-| API | Límite/mes | Costo | Habilidades |
-|-----|------------|-------|-------------|
-| Resend | 3,000 emails | ~$10 | email_send |
-| PDF.co | 5,000 pág | ~$15 | pdf/doc/excel |
-| Mathpix | 1,000 pág | ~$10 | pdf_read |
-| Mux | 100 videos | ~$20 | video_hosting |
-| Twilio | 500 SMS | ~$10 | sms_send |
-| Oxylabs | 1,000 req | ~$30 | scraping |
-| Gamma | 50 presentaciones | ~$10 | presentation_create |
-| **Total** | - | **~$105/mes** | - |
+| API | Costo/uso | Est. mensual |
+|-----|-----------|-------------|
+| Ollama Cloud | ∞ tokens | Incluido |
+| Stable Diffusion | $0.01/img | ~$5 |
+| Deepgram (STT+TTS) | $0.006/min + $3/M | ~$5 |
+| Kling 2.1 (fal.ai) | $0.15/5s clip | ~$7 |
+| Google APIs | quotas estándar | ~$5 |
+| **TOTAL** | | **~$22/mes** |
+
+**Precio sugerido:** $250-400/mes → **Margen 91-94%**
 
 ### Diferenciador de Mercado
 
 | Nosotros | Competencia |
 |----------|-------------|
-| **25+14 = 39 habilidades** | 5-10 básicas |
+| **58 habilidades built-in** | 5-10 básicas |
+| **20 automatizaciones** | 0-3 manuales |
 | **Documentos completos** | Solo texto |
-| **Email enviar + recibir** | Solo enviar |
-| **Video processing** | No disponible |
-| **SMS** | No disponible |
-| **Web scraping** | No disponible |
-| **Automatización** | Limitada |
+| **Email enviar + recibir + marketing** | Solo enviar |
+| **Video processing + creación** | No disponible |
+| **SMS + WhatsApp + Telegram + Discord** | Solo 1-2 canales |
+| **Web scraping + búsqueda** | No disponible |
+| **Clasificación + reescritura IA** | No disponible |
 | **Bundles por negocio** | No disponible |
+| **~$22/mes costo real** | $100-500/mes |
 
 ---
 
@@ -603,14 +609,14 @@ Son habilidades que nosotros proveemos con nuestras APIs compartidas:
 
 | Archivo | Propósito |
 |---------|-----------|
-| `skills-core.json` | 25 habilidades CORE |
-| `skills-optional.json` | 14 habilidades opcionales |
+| `skills-builtin.json` | 58 habilidades BUILT-IN (único JSON) |
+| `automatizaciones-builtin.json` | 20 automatizaciones pre-configuradas |
 | `skills-bundle.json` | Bundle según tipo de negocio |
-| `SKILLS.md` | Documentación de usuario |
-| `setup-skills.sh` | Script de configuración |
+| `SKILLS.md` | Documentación de usuario (generada) |
+| `setup-skills.sh` | Script de configuración v2.0 |
 
 ---
 
-*Documento creado para FASE 4 ÁREA 6 - TURNKEY v6*
-*Autor: Sub-agente de análisis*
-*Fecha: 2026-03-05*
+*Documento actualizado para FASE 4 ÁREA 6 — TURNKEY v6*
+*Modelo: v2.0 — Agente en Mano*
+*Fecha: 2026-03-07*

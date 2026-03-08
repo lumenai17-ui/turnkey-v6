@@ -1,10 +1,11 @@
 #!/bin/bash
 #===============================================================================
-# FASE 4: IDENTITY FLEET - Setup Skills (Super Agente)
+# FASE 4: IDENTITY FLEET - Setup Skills (Super Agente v2.0)
 #===============================================================================
-# Propósito: Configurar habilidades del Super Agente (39 habilidades)
+# Propósito: Configurar 58 habilidades built-in del Super Agente
 # Uso: ./setup-skills.sh --agent-name "nombre" [--business-type "tipo"]
-# Corregido: 2026-03-06 - Auditoría Multigente
+# Versión: 2.0.0 — Agente en Mano
+# Actualizado: 2026-03-07
 #===============================================================================
 
 set -euo pipefail
@@ -69,6 +70,11 @@ usage() {
     echo "  --business-type TIPO    Tipo: restaurante, hotel, tienda, servicios, generico"
     echo "  --dry-run               Simular ejecución"
     echo "  --help                  Mostrar esta ayuda"
+    echo ""
+    echo "Modelo v2.0 — Agente en Mano:"
+    echo "  58 habilidades BUILT-IN (todas funcionan siempre)"
+    echo "  20 automatizaciones pre-configuradas"
+    echo "  Costo aproximado: ~\$22/mes por agente"
     echo ""
     echo "Tipos de negocio y sus skills:"
     echo "  restaurante  → menu, reservas, pedidos, horarios, delivery"
@@ -152,12 +158,13 @@ readonly AGENT_NAME BUSINESS_TYPE DRY_RUN
 #===============================================================================
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║         FASE 4: IDENTITY FLEET - Setup Skills                 ║${NC}"
+echo -e "${BLUE}║     FASE 4: IDENTITY FLEET - Setup Skills v2.0              ║${NC}"
+echo -e "${BLUE}║     Agente en Mano — 58 Skills Built-in                     ║${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 if [[ "$DRY_RUN" == "true" ]]; then
-    echo -e "${YELLOW}${BOLD}[MODO DRY-RUN]${NC} Solo simulación"
+    echo -e "${YELLOW}[MODO DRY-RUN]${NC} Solo simulación"
     echo ""
 fi
 
@@ -179,285 +186,499 @@ fi
 log_success "Fleet verificado"
 
 #===============================================================================
-# HABILIDADES CORE (25)
+# HABILIDADES BUILT-IN (58) — Todo funciona siempre
 #===============================================================================
 
-log_info "[1/4] Configurando habilidades CORE (25)..."
+log_info "[1/4] Configurando 58 habilidades BUILT-IN..."
 
 if [[ "$DRY_RUN" == "true" ]]; then
-    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-core.json"
+    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-builtin.json"
 else
-    cat > "$CONFIG_DIR/skills-core.json" << 'CORE_EOF'
+    cat > "$CONFIG_DIR/skills-builtin.json" << 'BUILTIN_EOF'
 {
   "version": "2.0.0",
-  "description": "25 habilidades CORE - Siempre funcionan sin configuración",
+  "model": "agente-en-mano",
+  "description": "58 habilidades BUILT-IN — Todas funcionan siempre sin configuración del cliente",
+  "total_skills": 58,
+  "cost_per_month": "~$22",
   "skills": {
-    "documents": {
-      "pdf_generate": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Crear documentos PDF"
-      },
-      "pdf_read": {
-        "enabled": true,
-        "limit": 1000,
-        "description": "Extraer texto de PDFs"
-      },
-      "pdf_edit": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Modificar/combinar PDFs"
-      },
-      "doc_generate": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Crear Word/Docs"
-      },
-      "excel_generate": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Crear Excel"
-      },
-      "excel_read": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Leer Excel"
-      },
-      "presentation_create": {
-        "enabled": true,
-        "limit": 50,
-        "description": "Crear presentaciones"
-      }
-    },
-    "email": {
+    "comunicacion": {
+      "_count": 9,
       "email_send": {
         "enabled": true,
-        "limit": 3000,
-        "description": "Enviar emails con adjuntos"
+        "provider": "postfix",
+        "processing": "local",
+        "description": "Enviar emails desde nuestro dominio",
+        "cost": "incluido"
       },
       "email_read": {
         "enabled": true,
-        "limit": null,
-        "description": "Leer y procesar emails"
-      }
-    },
-    "video": {
-      "video_process": {
-        "enabled": true,
-        "limit": 100,
-        "description": "Analizar videos"
+        "provider": "dovecot",
+        "processing": "local",
+        "description": "Leer y procesar emails (IMAP)",
+        "cost": "incluido"
       },
-      "video_edit": {
-        "enabled": true,
-        "limit": 100,
-        "description": "Editar videos"
-      }
-    },
-    "automation": {
-      "browser": {
-        "enabled": true,
-        "limit": null,
-        "description": "Navegador automatizado"
-      },
-      "scraping": {
-        "enabled": true,
-        "limit": 1000,
-        "description": "Web scraping"
-      },
-      "forms": {
-        "enabled": true,
-        "limit": null,
-        "description": "Formularios"
-      },
-      "cron": {
-        "enabled": true,
-        "limit": null,
-        "description": "Tareas programadas"
-      },
-      "webhook": {
-        "enabled": true,
-        "limit": null,
-        "description": "Webhooks"
-      }
-    },
-    "communication": {
       "sms_send": {
         "enabled": true,
-        "limit": 500,
-        "description": "Enviar SMS"
+        "provider": "openclaw",
+        "processing": "sistema",
+        "description": "Enviar SMS",
+        "cost": "incluido"
       },
       "whatsapp_send": {
         "enabled": true,
-        "limit": null,
-        "description": "Enviar WhatsApp"
+        "provider": "openclaw",
+        "processing": "sistema",
+        "description": "Enviar WhatsApp",
+        "cost": "incluido"
       },
       "telegram_send": {
         "enabled": true,
-        "limit": null,
-        "description": "Enviar Telegram"
+        "provider": "openclaw",
+        "processing": "sistema",
+        "description": "Enviar Telegram",
+        "cost": "incluido"
       },
       "discord_send": {
         "enabled": true,
-        "limit": null,
-        "description": "Enviar Discord"
+        "provider": "openclaw",
+        "processing": "sistema",
+        "description": "Enviar Discord",
+        "cost": "incluido"
+      },
+      "voice_receive": {
+        "enabled": true,
+        "provider": "deepgram_nova_stt",
+        "processing": "api_externa",
+        "description": "Recibir y transcribir voicenotes",
+        "cost": "$0.006/min"
+      },
+      "voice_send": {
+        "enabled": true,
+        "provider": "deepgram_aura_tts",
+        "processing": "api_externa",
+        "description": "Generar voicenotes (TTS)",
+        "cost": "$3/M chars"
+      },
+      "audio_transcribe": {
+        "enabled": true,
+        "provider": "deepgram_nova_stt",
+        "processing": "api_externa",
+        "description": "Transcribir audio",
+        "cost": "$0.006/min"
       }
     },
-    "business": {
+    "multimedia": {
+      "_count": 7,
+      "image_receive": {
+        "enabled": true,
+        "provider": "ollamacloud_vision",
+        "processing": "ollamacloud",
+        "description": "Analizar imágenes",
+        "cost": "incluido"
+      },
+      "image_generate": {
+        "enabled": true,
+        "provider": "stable_diffusion",
+        "processing": "api_externa",
+        "description": "Crear imágenes",
+        "cost": "$0.01/img"
+      },
+      "image_edit": {
+        "enabled": true,
+        "provider": "stable_diffusion_img2img",
+        "processing": "api_externa",
+        "description": "Editar imágenes",
+        "cost": "$0.01/img"
+      },
+      "video_process": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "processing": "ollamacloud",
+        "description": "Analizar/procesar video",
+        "cost": "incluido"
+      },
+      "video_create": {
+        "enabled": true,
+        "provider": "kling_2.1_fal",
+        "processing": "api_externa",
+        "description": "Crear video corto con IA",
+        "cost": "$0.15/5s"
+      },
+      "video_edit": {
+        "enabled": true,
+        "provider": "ffmpeg",
+        "processing": "local",
+        "description": "Editar video",
+        "cost": "incluido"
+      },
+      "ocr": {
+        "enabled": true,
+        "provider": "ollamacloud_vision",
+        "processing": "ollamacloud",
+        "description": "OCR de imágenes",
+        "cost": "incluido"
+      }
+    },
+    "documentos": {
+      "_count": 8,
+      "pdf_generate": {
+        "enabled": true,
+        "provider": "wkhtmltopdf",
+        "processing": "local",
+        "description": "Crear documentos PDF",
+        "cost": "incluido"
+      },
+      "pdf_read": {
+        "enabled": true,
+        "provider": "pdftotext_tika",
+        "processing": "local",
+        "description": "Leer/extraer texto de PDFs",
+        "cost": "incluido"
+      },
+      "pdf_edit": {
+        "enabled": true,
+        "provider": "qpdf_pdftk",
+        "processing": "local",
+        "description": "Editar/combinar PDFs",
+        "cost": "incluido"
+      },
+      "doc_generate": {
+        "enabled": true,
+        "provider": "pandoc",
+        "processing": "local",
+        "description": "Crear documentos Word",
+        "cost": "incluido"
+      },
+      "excel_generate": {
+        "enabled": true,
+        "provider": "python_openpyxl",
+        "processing": "local",
+        "description": "Crear Excel",
+        "cost": "incluido"
+      },
+      "excel_read": {
+        "enabled": true,
+        "provider": "python_openpyxl",
+        "processing": "local",
+        "description": "Leer Excel",
+        "cost": "incluido"
+      },
+      "presentation_create": {
+        "enabled": true,
+        "provider": "python_pptx",
+        "processing": "local",
+        "description": "Crear presentaciones PowerPoint",
+        "cost": "incluido"
+      },
       "invoice_generate": {
         "enabled": true,
-        "limit": 5000,
-        "description": "Crear facturas"
-      },
-      "report_generate": {
-        "enabled": true,
-        "limit": 5000,
-        "description": "Crear reportes"
-      },
-      "qrcode_generate": {
-        "enabled": true,
-        "limit": null,
-        "description": "Crear QR codes"
+        "provider": "wkhtmltopdf_templates",
+        "processing": "local",
+        "description": "Crear facturas",
+        "cost": "incluido"
       }
     },
-    "productivity": {
+    "web_automatizacion": {
+      "_count": 8,
+      "browser": {
+        "enabled": true,
+        "provider": "puppeteer",
+        "processing": "local",
+        "description": "Navegador automatizado",
+        "cost": "incluido"
+      },
+      "scraping": {
+        "enabled": true,
+        "provider": "puppeteer_cheerio",
+        "processing": "local",
+        "description": "Web scraping",
+        "cost": "incluido"
+      },
+      "web_search": {
+        "enabled": true,
+        "provider": "brave_search",
+        "processing": "api_externa",
+        "description": "Búsqueda web",
+        "cost": "free tier"
+      },
+      "web_fetch": {
+        "enabled": true,
+        "provider": "curl_fetch",
+        "processing": "local",
+        "description": "Fetch URL contenido",
+        "cost": "incluido"
+      },
+      "web_create": {
+        "enabled": true,
+        "provider": "templates_cloudflare",
+        "processing": "local",
+        "description": "Crear sitio web",
+        "cost": "incluido"
+      },
+      "form_create": {
+        "enabled": true,
+        "provider": "html_templates",
+        "processing": "local",
+        "description": "Crear formularios HTML",
+        "cost": "incluido"
+      },
+      "cron": {
+        "enabled": true,
+        "provider": "cron_systemd",
+        "processing": "local",
+        "description": "Tareas programadas",
+        "cost": "incluido"
+      },
+      "webhook": {
+        "enabled": true,
+        "provider": "http_server",
+        "processing": "local",
+        "description": "Webhooks entrantes/salientes",
+        "cost": "incluido"
+      }
+    },
+    "inteligencia": {
+      "_count": 7,
       "summarize": {
         "enabled": true,
         "provider": "ollamacloud",
-        "description": "Resumir textos"
+        "processing": "ollamacloud",
+        "description": "Resumir textos",
+        "cost": "incluido"
       },
       "extract_data": {
         "enabled": true,
         "provider": "ollamacloud",
-        "description": "Extraer datos"
+        "processing": "ollamacloud",
+        "description": "Extraer datos estructurados",
+        "cost": "incluido"
       },
       "sentiment": {
         "enabled": true,
         "provider": "ollamacloud",
-        "description": "Análisis de sentimiento"
+        "processing": "ollamacloud",
+        "description": "Análisis de sentimiento",
+        "cost": "incluido"
       },
-      "ocr": {
+      "translate": {
         "enabled": true,
         "provider": "ollamacloud",
-        "description": "OCR de imágenes"
+        "processing": "ollamacloud",
+        "description": "Traducción multilenguaje",
+        "cost": "incluido"
+      },
+      "memory_search": {
+        "enabled": true,
+        "provider": "ollamacloud_nomic_embed",
+        "processing": "ollamacloud",
+        "description": "Memoria persistente (embeddings)",
+        "cost": "incluido"
+      },
+      "classify": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "processing": "ollamacloud",
+        "description": "Clasificar textos/intents",
+        "cost": "incluido"
+      },
+      "rewrite": {
+        "enabled": true,
+        "provider": "ollamacloud",
+        "processing": "ollamacloud",
+        "description": "Reescribir textos (tono, estilo)",
+        "cost": "incluido"
+      }
+    },
+    "negocio": {
+      "_count": 6,
+      "report_generate": {
+        "enabled": true,
+        "provider": "wkhtmltopdf",
+        "processing": "local",
+        "description": "Crear reportes",
+        "cost": "incluido"
+      },
+      "qrcode_generate": {
+        "enabled": true,
+        "provider": "qrencode",
+        "processing": "local",
+        "description": "Generar códigos QR",
+        "cost": "incluido"
+      },
+      "qrcode_read": {
+        "enabled": true,
+        "provider": "ollamacloud_vision",
+        "processing": "ollamacloud",
+        "description": "Leer códigos QR",
+        "cost": "incluido"
+      },
+      "metrics_dashboard": {
+        "enabled": true,
+        "provider": "chartsjs_html",
+        "processing": "local",
+        "description": "Dashboard de métricas",
+        "cost": "incluido"
+      },
+      "notifications": {
+        "enabled": true,
+        "provider": "canales_existentes",
+        "processing": "local",
+        "description": "Sistema de notificaciones",
+        "cost": "incluido"
+      },
+      "reviews_monitor": {
+        "enabled": true,
+        "provider": "scraping_cron",
+        "processing": "local",
+        "description": "Monitorear reseñas",
+        "cost": "incluido"
+      }
+    },
+    "email_marketing": {
+      "_count": 4,
+      "newsletter_send": {
+        "enabled": true,
+        "provider": "postfix_smtp",
+        "processing": "local",
+        "description": "Enviar newsletters masivos",
+        "cost": "incluido"
+      },
+      "email_templates": {
+        "enabled": true,
+        "provider": "sistema",
+        "processing": "local",
+        "description": "Templates de email HTML",
+        "cost": "incluido"
+      },
+      "email_tracking": {
+        "enabled": true,
+        "provider": "webhook_pixel",
+        "processing": "local",
+        "description": "Tracking de apertura/clicks",
+        "cost": "incluido"
+      },
+      "email_drip": {
+        "enabled": true,
+        "provider": "cron_smtp",
+        "processing": "local",
+        "description": "Secuencias de email automatizadas",
+        "cost": "incluido"
+      }
+    },
+    "codigo": {
+      "_count": 3,
+      "code_execute": {
+        "enabled": true,
+        "provider": "sandbox",
+        "processing": "local",
+        "description": "Ejecutar código en sandbox",
+        "cost": "incluido"
+      },
+      "git_commit": {
+        "enabled": true,
+        "provider": "git",
+        "processing": "local",
+        "description": "Git commits",
+        "cost": "incluido"
+      },
+      "repo_read": {
+        "enabled": true,
+        "provider": "git",
+        "processing": "local",
+        "description": "Leer repositorios",
+        "cost": "incluido"
+      }
+    },
+    "productividad": {
+      "_count": 2,
+      "reminders": {
+        "enabled": true,
+        "provider": "cron_canales",
+        "processing": "local",
+        "description": "Recordatorios automáticos",
+        "cost": "incluido"
+      },
+      "tasks": {
+        "enabled": true,
+        "provider": "sistema",
+        "processing": "local",
+        "description": "Gestión de tareas/pendientes",
+        "cost": "incluido"
+      }
+    },
+    "google_workspace": {
+      "_count": 4,
+      "calendar": {
+        "enabled": true,
+        "provider": "google_calendar_api",
+        "processing": "google_api",
+        "description": "Google Calendar (nosotros configuramos)",
+        "cost": "incluido"
+      },
+      "sheets": {
+        "enabled": true,
+        "provider": "google_sheets_api",
+        "processing": "google_api",
+        "description": "Google Sheets (nosotros configuramos)",
+        "cost": "incluido"
+      },
+      "location": {
+        "enabled": true,
+        "provider": "google_maps_api",
+        "processing": "google_api",
+        "description": "Maps y ubicación (nuestra key)",
+        "cost": "~$5/mes"
+      },
+      "directions": {
+        "enabled": true,
+        "provider": "google_maps_api",
+        "processing": "google_api",
+        "description": "Rutas y distancias (nuestra key)",
+        "cost": "incluido en maps"
       }
     }
   }
 }
-CORE_EOF
+BUILTIN_EOF
 
-    if validate_json "$CONFIG_DIR/skills-core.json"; then
-        CREATED_FILES+=("$CONFIG_DIR/skills-core.json")
-        log_success "25 habilidades CORE configuradas"
+    if validate_json "$CONFIG_DIR/skills-builtin.json"; then
+        CREATED_FILES+=("$CONFIG_DIR/skills-builtin.json")
+        log_success "58 habilidades BUILT-IN configuradas"
     else
-        log_error "Error creando skills-core.json"
+        log_error "Error creando skills-builtin.json"
         exit 1
+    fi
+
+    # Eliminar archivos del modelo viejo si existen
+    if [[ -f "$CONFIG_DIR/skills-core.json" ]]; then
+        rm -f "$CONFIG_DIR/skills-core.json"
+        log_warning "Eliminado modelo viejo: skills-core.json"
+    fi
+    if [[ -f "$CONFIG_DIR/skills-optional.json" ]]; then
+        rm -f "$CONFIG_DIR/skills-optional.json"
+        log_warning "Eliminado modelo viejo: skills-optional.json"
     fi
 fi
 
 #===============================================================================
-# HABILIDADES OPCIONALES (14)
+# AUTOMATIZACIONES BUILT-IN (20)
 #===============================================================================
 
-log_info "[2/4] Configurando habilidades OPCIONALES (14)..."
+log_info "[2/4] Vinculando 20 automatizaciones built-in..."
 
 if [[ "$DRY_RUN" == "true" ]]; then
-    log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/skills-optional.json"
+    log_warning "[DRY-RUN] Vincularía automatizaciones-builtin.json"
 else
-    cat > "$CONFIG_DIR/skills-optional.json" << 'OPTIONAL_EOF'
-{
-  "version": "2.0.0",
-  "description": "14 habilidades OPCIONALES - Requieren API keys",
-  "skills": {
-    "voice": {
-      "voice_receive": {
-        "enabled": false,
-        "requires": "OPENAI_API_KEY",
-        "description": "Recibir y procesar voz"
-      },
-      "voice_send": {
-        "enabled": false,
-        "requires": "OPENAI_API_KEY",
-        "description": "Generar voz (TTS)"
-      },
-      "audio_transcribe": {
-        "enabled": false,
-        "requires": "OPENAI_API_KEY",
-        "description": "Transcribir audio"
-      }
-    },
-    "image": {
-      "image_generate": {
-        "enabled": false,
-        "requires": "OPENAI_API_KEY",
-        "description": "Generar imágenes (DALL-E)"
-      },
-      "image_edit": {
-        "enabled": false,
-        "requires": "OPENAI_API_KEY",
-        "description": "Editar imágenes"
-      },
-      "image_receive": {
-        "enabled": true,
-        "requires": "OLLAMA_API_KEY",
-        "description": "Analizar imágenes (Vision)"
-      }
-    },
-    "media": {
-      "audio_generate": {
-        "enabled": false,
-        "requires": "SUNO_API_KEY",
-        "description": "Generar música/audio"
-      },
-      "video_create": {
-        "enabled": false,
-        "requires": "RUNWAY_API_KEY",
-        "description": "Crear videos (AI)"
-      }
-    },
-    "services": {
-      "translate": {
-        "enabled": false,
-        "requires": "DEEPL_API_KEY",
-        "description": "Traducción profesional"
-      },
-      "location": {
-        "enabled": false,
-        "requires": "GOOGLE_MAPS_KEY",
-        "description": "Servicios de ubicación"
-      },
-      "calendar": {
-        "enabled": false,
-        "requires": "GOOGLE_OAUTH",
-        "description": "Google Calendar"
-      },
-      "sheets": {
-        "enabled": false,
-        "requires": "GOOGLE_OAUTH",
-        "description": "Google Sheets"
-      },
-      "deep_search": {
-        "enabled": false,
-        "requires": "PERPLEXITY_API_KEY",
-        "description": "Búsqueda profunda"
-      }
-    },
-    "code": {
-      "code_execute": {
-        "enabled": true,
-        "requires": null,
-        "description": "Ejecutar código"
-      }
-    }
-  }
-}
-OPTIONAL_EOF
+    # Verificar que existe automatizaciones-builtin.json en el directorio de fase
+    AUTOMATIONS_SOURCE="$(dirname "$(dirname "$0")")/automatizaciones-builtin.json"
 
-    if validate_json "$CONFIG_DIR/skills-optional.json"; then
-        CREATED_FILES+=("$CONFIG_DIR/skills-optional.json")
-        log_success "14 habilidades OPCIONALES configuradas"
+    if [[ -f "$AUTOMATIONS_SOURCE" ]]; then
+        cp "$AUTOMATIONS_SOURCE" "$CONFIG_DIR/automatizaciones-builtin.json"
+        CREATED_FILES+=("$CONFIG_DIR/automatizaciones-builtin.json")
+        log_success "20 automatizaciones vinculadas"
     else
-        log_error "Error creando skills-optional.json"
-        exit 1
+        log_warning "automatizaciones-builtin.json no encontrado en fase, se creará en activación"
     fi
 fi
 
@@ -506,7 +727,7 @@ else
 fi
 
 #===============================================================================
-# SKILLS.MD
+# SKILLS.MD — Documentación generada
 #===============================================================================
 
 log_info "[4/4] Generando SKILLS.md..."
@@ -515,80 +736,112 @@ if [[ "$DRY_RUN" == "true" ]]; then
     log_warning "[DRY-RUN] Crearía: $CONFIG_DIR/SKILLS.md"
 else
     cat > "$CONFIG_DIR/SKILLS.md" << SKILLSEOF
-# SKILLS - Habilidades del Super Agente
+# SKILLS - Habilidades del Super Agente v2.0
 
 **Agente:** ${AGENT_NAME}
 **Tipo de negocio:** ${BUSINESS_TYPE}
-**Total habilidades:** 39 (25 CORE + 14 OPCIONALES)
+**Total habilidades:** 58 BUILT-IN (todas funcionan siempre)
+**Automatizaciones:** 20 pre-configuradas
 **Actualizado:** $(date -Iseconds)
 
 ---
 
-## Habilidades CORE (25) - Siempre funcionan
+## Modelo: Agente en Mano
 
-Estas habilidades están disponibles SIEMPRE, sin configuración adicional.
+TODAS las 58 habilidades funcionan desde el día 1, sin configuración del cliente.
 
-### Documentos (7)
-- pdf_generate: Crear documentos PDF
-- pdf_read: Extraer texto de PDFs
-- pdf_edit: Modificar/combinar PDFs
-- doc_generate: Crear Word/Docs
-- excel_generate: Crear Excel
-- excel_read: Leer Excel
-- presentation_create: Crear presentaciones
+### Procesamiento
 
-### Email (2)
-- email_send: Enviar emails con adjuntos
-- email_read: Leer y procesar emails
+| Tipo | Proveedor | Costo |
+|------|-----------|-------|
+| ⚙️ Local | VPS (documentos, email, scraping, código) | Incluido |
+| ☁️ Ollama Cloud | Inteligencia (∞ tokens) | Incluido |
+| 🎬 Multimedia | Deepgram, Stable Diffusion, Kling 2.1 | ~\$17/mes |
+| 🔗 Google | Calendar, Sheets, Maps | ~\$5/mes |
 
-### Video (2)
-- video_process: Analizar videos
-- video_edit: Editar videos
-
-### Automatización (5)
-- browser: Navegador automatizado
-- scraping: Web scraping
-- forms: Formularios
-- cron: Tareas programadas
-- webhook: Webhooks
-
-### Comunicación (4)
-- sms_send: Enviar SMS
-- whatsapp_send: Enviar WhatsApp
-- telegram_send: Enviar Telegram
-- discord_send: Enviar Discord
-
-### Negocio (3)
-- invoice_generate: Crear facturas
-- report_generate: Crear reportes
-- qrcode_generate: Crear QR codes
-
-### Productividad (4)
-- summarize: Resumir textos
-- extract_data: Extraer datos
-- sentiment: Análisis de sentimiento
-- ocr: OCR de imágenes
+**Costo total por agente:** ~\$22/mes
 
 ---
 
-## Habilidades OPCIONALES (14) - Requieren API key
+## 58 Skills Built-in
 
-| Habilidad | API necesaria |
-|-----------|--------------|
-| voice_receive | OPENAI_API_KEY |
-| voice_send | OPENAI_API_KEY |
-| audio_transcribe | OPENAI_API_KEY |
-| image_generate | OPENAI_API_KEY |
-| image_edit | OPENAI_API_KEY |
-| audio_generate | SUNO_API_KEY |
-| video_create | RUNWAY_API_KEY |
-| translate | DEEPL_API_KEY |
-| location | GOOGLE_MAPS_KEY |
-| calendar | GOOGLE_OAUTH |
-| sheets | GOOGLE_OAUTH |
-| deep_search | PERPLEXITY_API_KEY |
-| code_execute | (ninguna) ✅ |
-| image_receive | OLLAMA_API_KEY ✅ |
+### 📱 Comunicación (9)
+- email_send — Enviar emails (Postfix local)
+- email_read — Leer emails (Dovecot IMAP)
+- sms_send — Enviar SMS
+- whatsapp_send — Enviar WhatsApp
+- telegram_send — Enviar Telegram
+- discord_send — Enviar Discord
+- voice_receive — Recibir voicenotes (Deepgram Nova STT)
+- voice_send — Enviar voicenotes (Deepgram Aura TTS)
+- audio_transcribe — Transcribir audio (Deepgram Nova STT)
+
+### 🖼️ Multimedia (7)
+- image_receive — Analizar imágenes (Ollama Cloud Vision)
+- image_generate — Crear imágenes (Stable Diffusion)
+- image_edit — Editar imágenes (SD img2img)
+- video_process — Procesar video (Ollama Cloud)
+- video_create — Crear video (Kling 2.1 via fal.ai)
+- video_edit — Editar video (FFmpeg local)
+- ocr — OCR de imágenes (Ollama Cloud Vision)
+
+### 📄 Documentos (8)
+- pdf_generate — Crear PDFs (wkhtmltopdf)
+- pdf_read — Leer PDFs (pdftotext/Tika)
+- pdf_edit — Editar PDFs (qpdf/pdftk)
+- doc_generate — Crear Word (pandoc)
+- excel_generate — Crear Excel (openpyxl)
+- excel_read — Leer Excel (openpyxl)
+- presentation_create — Crear presentaciones (python-pptx)
+- invoice_generate — Crear facturas (wkhtmltopdf + templates)
+
+### 🌐 Web & Automatización (8)
+- browser — Navegador automatizado (Puppeteer)
+- scraping — Web scraping (Puppeteer + cheerio)
+- web_search — Búsqueda web (Brave free tier)
+- web_fetch — Fetch URL (curl/fetch)
+- web_create — Crear sitio web (templates + Cloudflare)
+- form_create — Crear formularios (HTML templates)
+- cron — Tareas programadas (cron/systemd)
+- webhook — Webhooks (HTTP server)
+
+### 🧠 Inteligencia (7)
+- summarize — Resumir textos (Ollama Cloud)
+- extract_data — Extraer datos (Ollama Cloud)
+- sentiment — Análisis sentimiento (Ollama Cloud)
+- translate — Traducción (Ollama Cloud)
+- memory_search — Memoria persistente (Nomic Embed)
+- classify — Clasificar textos (Ollama Cloud)
+- rewrite — Reescribir textos (Ollama Cloud)
+
+### 📊 Negocio (6)
+- report_generate — Crear reportes
+- qrcode_generate — Generar QR
+- qrcode_read — Leer QR
+- metrics_dashboard — Dashboard métricas
+- notifications — Sistema notificaciones
+- reviews_monitor — Monitorear reseñas
+
+### 📨 Email Marketing (4)
+- newsletter_send — Newsletters (Postfix SMTP)
+- email_templates — Templates email
+- email_tracking — Tracking apertura/clicks
+- email_drip — Secuencias automatizadas
+
+### 💻 Código (3)
+- code_execute — Ejecutar código (sandbox)
+- git_commit — Git commits
+- repo_read — Leer repos
+
+### 📅 Productividad (2)
+- reminders — Recordatorios (cron + canales)
+- tasks — Tareas/pendientes
+
+### 🔗 Google Workspace (4)
+- calendar — Google Calendar (nosotros configuramos)
+- sheets — Google Sheets (nosotros configuramos)
+- location — Maps/ubicación (nuestra key)
+- directions — Rutas/distancias (nuestra key)
 
 ---
 
@@ -598,7 +851,7 @@ ${BUNDLE_DESC}
 
 ---
 
-*Habilidades configuradas en FASE 4.*
+*Habilidades configuradas en FASE 4 — Modelo v2.0 Agente en Mano.*
 SKILLSEOF
 
     CREATED_FILES+=("$CONFIG_DIR/SKILLS.md")
@@ -615,14 +868,17 @@ if [[ "$DRY_RUN" != "true" ]]; then
     cat > "$CONFIG_DIR/.skills-status.json" << EOF
 {
   "status": "completed",
+  "model": "agente-en-mano",
+  "version": "2.0.0",
   "agent_name": "${AGENT_NAME}",
   "business_type": "${BUSINESS_TYPE}",
-  "total_skills": 39,
-  "core_skills": 25,
-  "optional_skills": 14,
+  "total_skills": 58,
+  "builtin_skills": 58,
+  "optional_skills": 0,
+  "automations": 20,
   "bundle": "${BUSINESS_TYPE}",
-  "created_at": "$(date -Iseconds)",
-  "version": "1.0.0"
+  "cost_per_month": "~\$22",
+  "created_at": "$(date -Iseconds)"
 }
 EOF
 
@@ -637,22 +893,30 @@ mark_success
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║              SKILLS SETUP COMPLETADO                          ║${NC}"
+echo -e "${GREEN}║         SKILLS SETUP v2.0 COMPLETADO                         ║${NC}"
+echo -e "${GREEN}║           Agente en Mano — 58 Built-in                       ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}Agente:${NC} ${AGENT_NAME}"
 echo -e "${BLUE}Tipo de negocio:${NC} ${BUSINESS_TYPE}"
+echo -e "${BLUE}Costo mensual:${NC} ~\$22/mes"
 echo ""
 echo -e "${BLUE}Habilidades configuradas:${NC}"
-echo -e "   ${GREEN}✓${NC} 25 habilidades CORE (siempre disponibles)"
-echo -e "   ${GREEN}✓${NC} 14 habilidades OPCIONALES (requieren API key)"
+echo -e "   ${GREEN}✓${NC} 58 habilidades BUILT-IN (todas funcionan siempre)"
+echo -e "   ${GREEN}✓${NC} 20 automatizaciones pre-configuradas"
 echo -e "   ${GREEN}✓${NC} Bundle: ${BUSINESS_TYPE}"
 echo ""
 echo -e "${BLUE}Archivos creados:${NC}"
-echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-core.json"
-echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-optional.json"
-echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-bundle.json"
+echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-builtin.json (58 skills)"
+echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/automatizaciones-builtin.json (20 automations)"
+echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/skills-bundle.json (${BUSINESS_TYPE})"
 echo -e "   ${GREEN}✓${NC} $CONFIG_DIR/SKILLS.md"
+echo ""
+echo -e "${BLUE}Procesamiento:${NC}"
+echo -e "   ⚙️  Local (VPS): documentos, email, scraping, código"
+echo -e "   ☁️  Ollama Cloud: inteligencia (∞ tokens)"
+echo -e "   🎬 APIs externas: Deepgram + SD + Kling (~\$17/mes)"
+echo -e "   🔗 Google APIs: Calendar + Sheets + Maps (~\$5/mes)"
 echo ""
 echo -e "${YELLOW}Siguiente paso:${NC} ./process-knowledge.sh --agent-name '${AGENT_NAME}'"
 echo ""

@@ -1,0 +1,171 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-03-07T10:00:00Z",
+  "deployment": {
+    "type": "vps",
+    "provider": "auto-detect"
+  },
+  "agent": {
+    "name": "casamahana",
+    "business_name": "Casa Mahana",
+    "business_type": "restaurante",
+    "role": "Asistente virtual del restaurante Casa Mahana",
+    "emoji": "🍽️",
+    "language": "es",
+    "secondary_language": "",
+    "timezone": "America/Panama",
+    "port": 18789,
+    "business_hours": {
+      "weekdays": "11:00-22:00",
+      "saturday": "11:00-23:00",
+      "sunday": "12:00-21:00",
+      "holidays": "closed"
+    }
+  },
+  "branding": {
+    "primary_color": "#D4451A",
+    "secondary_color": "#F5E6D3",
+    "accent_color": "#2D5016",
+    "tone": "profesional_y_amigable",
+    "logo_path": "assets/logo_casamahana.png",
+    "agent_self_reference": "Soy el asistente de Casa Mahana",
+    "phrases_to_use": [
+      "¡Bienvenido a Casa Mahana!",
+      "¿En qué puedo ayudarte hoy?",
+      "Será un placer atenderte"
+    ],
+    "phrases_to_avoid": [
+      "No sé",
+      "No es mi problema"
+    ]
+  },
+  "contact": {
+    "owner_name": "Roberto García",
+    "owner_phone": "+507 6000-1234",
+    "owner_email": "roberto@casamahana.com",
+    "owner_telegram_id": "123456789",
+    "business_phone": "+507 200-5678",
+    "business_email": "info@casamahana.com",
+    "address": "Calle 50, Local 12, Panamá City",
+    "website": "https://casamahana.com"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "create_new_bot": true,
+      "bot_token": "",
+      "allowed_users": ["123456789"],
+      "admin_users": ["123456789"]
+    },
+    "email": {
+      "enabled": true,
+      "use_our_domain": true,
+      "address": "casamahana@nuestro-dominio.ai"
+    },
+    "whatsapp": {
+      "enabled": false,
+      "number": ""
+    },
+    "discord": {
+      "enabled": false
+    }
+  },
+  "google_apis": {
+    "calendar": {
+      "enabled": true,
+      "google_account_email": "casamahana.panama@gmail.com",
+      "note": "Nosotros configuramos OAuth — cliente solo acepta permisos"
+    },
+    "sheets": {
+      "enabled": true,
+      "same_account_as_calendar": true
+    },
+    "maps": {
+      "enabled": true,
+      "note": "Usa nuestra API key, no requiere nada del cliente"
+    }
+  },
+  "integrations": {
+    "wordpress": {
+      "enabled": false
+    },
+    "meta_ads": {
+      "enabled": false
+    },
+    "stripe": {
+      "enabled": false
+    },
+    "google_my_business": {
+      "enabled": true,
+      "business_url": "https://g.co/kgs/casamahana"
+    }
+  },
+  "automations": {
+    "enabled": [
+      "A-02_post_creator",
+      "A-12_invoice_autopilot",
+      "A-13_appointment_bot",
+      "A-14_review_responder",
+      "A-15_daily_report",
+      "A-18_order_manager"
+    ],
+    "disabled": [
+      "A-01", "A-03", "A-05", "A-06", "A-07", "A-08", "A-09",
+      "A-10", "A-11", "A-16", "A-17", "A-19", "A-20"
+    ]
+  },
+  "knowledge_base": {
+    "website_urls": [
+      {
+        "url": "https://casamahana.com",
+        "type": "website",
+        "scrape": true
+      },
+      {
+        "url": "https://casamahana.com/menu",
+        "type": "menu",
+        "scrape": true
+      }
+    ],
+    "documents": [
+      {
+        "file": "docs/menu_casamahana.pdf",
+        "type": "menu"
+      },
+      {
+        "file": "docs/politicas_reservacion.pdf",
+        "type": "policies"
+      }
+    ],
+    "special_info": {
+      "payment_methods": ["efectivo", "tarjeta", "yappy", "nequi"],
+      "delivery_zone": "5km alrededor del local",
+      "social_media": {
+        "instagram": "@casamahana",
+        "facebook": "CasaMahanaPanama"
+      }
+    }
+  },
+  "billing": {
+    "fiscal_name": "Casa Mahana S.A.",
+    "tax_id": "8-888-8888",
+    "fiscal_address": "Calle 50, Local 12, Panamá City",
+    "currency": "USD",
+    "tax_rate": 0.07,
+    "our_service": {
+      "plan": "Pro",
+      "monthly_fee": 350.00
+    }
+  },
+  "models": {
+    "primary": "gemma3",
+    "fallback": "llama4",
+    "vision": "qwen3-vl",
+    "embeddings": "nomic-embed"
+  },
+  "skills": {
+    "mode": "all_builtin",
+    "total": 58,
+    "note": "v2.0: Todas las 58 skills están siempre activas"
+  }
+}

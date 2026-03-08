@@ -187,6 +187,56 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 #===============================================================================
+# VALIDAR FASES ANTERIORES (M-2)
+#===============================================================================
+
+log_info "[0/6] Validando fases anteriores..."
+
+# Verificar que FASE 3 completó (gateway configurado)
+GATEWAY_CONFIG="$CONFIG_DIR/gateway.json"
+PHASE_WORK_DIR="$HOME/.openclaw/workspace/turnkey"
+if [[ -f "${PHASE_WORK_DIR}/phase-3-status.json" ]]; then
+    if command -v jq &>/dev/null; then
+        p3_status=$(jq -r '.status // "unknown"' "${PHASE_WORK_DIR}/phase-3-status.json" 2>/dev/null || echo "unknown")
+        if [[ "$p3_status" == "success" ]]; then
+            log_success "FASE 3 validada: $p3_status"
+        else
+            log_warning "FASE 3 tiene estado: $p3_status (se recomienda completarla)"
+        fi
+    fi
+else
+    log_warning "FASE 3 no detectada (phase-3-status.json no encontrado)"
+    log_warning "Continuando sin validación de gateway..."
+fi
+
+#===============================================================================
+# BACKUP DE CONFIG EXISTENTE (M-3)
+#===============================================================================
+
+if [[ -d "$CONFIG_DIR" ]] && [[ "$DRY_RUN" != "true" ]]; then
+    backup_needed=false
+    for f in SOUL.md USER.md HEART.md DOPAMINE.md; do
+        if [[ -f "$CONFIG_DIR/$f" ]]; then
+            backup_needed=true
+            break
+        fi
+    done
+    if [[ "$backup_needed" == "true" ]]; then
+        backup_dir="$CONFIG_DIR/.backup-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$backup_dir"
+        for f in SOUL.md USER.md HEART.md DOPAMINE.md; do
+            if [[ -f "$CONFIG_DIR/$f" ]]; then
+                cp "$CONFIG_DIR/$f" "$backup_dir/"
+            fi
+        done
+        if [[ -f "$DATA_DIR/MEMORY.md" ]]; then
+            cp "$DATA_DIR/MEMORY.md" "$backup_dir/"
+        fi
+        log_warning "Backup de config existente en: $backup_dir"
+    fi
+fi
+
+#===============================================================================
 # CREAR DIRECTORIOS
 #===============================================================================
 

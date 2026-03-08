@@ -1,20 +1,23 @@
 {
   "meta": {
-    "version": "3.1.0",
+    "version": "5.0.0",
+    "model": "agente-en-mano",
     "created": "2026-03-05",
-    "lastUpdated": "2026-03-06T10:50:00.000Z",
-    "description": "Skills Bundles para Super Agente - TURNKEY v6",
+    "lastUpdated": "2026-03-07T23:00:00.000Z",
+    "description": "Skills Bundles + Automation Bundles para Super Agente v2.0 — TURNKEY v6",
     "phase": "04-identity-fleet",
     "area": "SKILLS-BUNDLES",
     "bundles_count": 10,
-    "skills_total": 50
+    "skills_total": 58,
+    "automations_total": 20,
+    "note": "v2.0: Las 58 skills son BUILT-IN. El contextMapping ahora mapea AUTOMATIZACIONES por tipo de negocio."
   },
 
   "bundles": [
     {
       "id": "communication_core",
       "name": "Comunicación Core",
-      "description": "Capacidades de comunicación esenciales: mensajes directos y email",
+      "description": "Capacidades de comunicación esenciales: mensajes directos, email y voz",
       "category": "comunicacion",
       "priority": 1,
       "alwaysWorks": true,
@@ -24,7 +27,10 @@
         "sms_send",
         "whatsapp_send",
         "telegram_send",
-        "discord_send"
+        "discord_send",
+        "voice_receive",
+        "voice_send",
+        "audio_transcribe"
       ],
       "intents": [
         "Envía un email a",
@@ -38,36 +44,54 @@
         "Responde por",
         "Manda un mensaje",
         "Envíale un correo",
-        "Contáctalo vía"
+        "Contáctalo vía",
+        "Escucha este voicenote",
+        "Responde con voz",
+        "Transcribe este audio"
       ],
       "responses": {
         "email_sent": "✉️ Email enviado correctamente a {recipient}. ¿Necesitas algo más?",
         "email_received": "📬 Tienes {count} emails nuevos. ¿Quieres que los resuma?",
         "sms_sent": "📱 SMS enviado a {phone}. Entregado en {time}s.",
-        " messaging_platform": "💬 Enviando mensaje por {platform}. Confírmame cuando lo reciba.",
+        "messaging_platform": "💬 Enviando mensaje por {platform}. Confírmame cuando lo reciba.",
         "no_channel": "No tengo configurado {platform}. ¿Quieres que use otro canal?",
         "delivery_failed": "⚠️ No se pudo entregar a {recipient}. Error: {error}. ¿Reintentamos?",
         "multiple_channels": "📱 Tengo {count} canales disponibles. ¿Por cuál prefieres enviar?",
-        "email_draft": "📝 Borrador preparado. Asunto: {subject}. ¿Lo envío o quieres editarlo?"
+        "email_draft": "📝 Borrador preparado. Asunto: {subject}. ¿Lo envío o quieres editarlo?",
+        "voice_received": "🎙️ Mensaje de voz procesado: {duration}s. Transcripción: {text}",
+        "voice_sent": "🔊 Audio enviado: {duration}s. Voz: {voice_type}.",
+        "audio_transcribed": "🎙️ Transcripción lista: {words} palabras, {duration} de audio."
       },
       "requiredApis": [
         {
-          "name": "resend",
+          "name": "postfix",
           "provider": "nosotros",
           "skills": ["email_send"],
-          "note": "Funciona siempre"
+          "note": "SMTP local — nuestro dominio. Funciona siempre"
         },
         {
-          "name": "imap",
+          "name": "dovecot",
           "provider": "nosotros",
           "skills": ["email_read"],
-          "note": "Funciona siempre"
+          "note": "IMAP local — nuestro dominio. Funciona siempre"
         },
         {
           "name": "twilio",
           "provider": "nosotros",
           "skills": ["sms_send"],
           "note": "Funciona siempre"
+        },
+        {
+          "name": "deepgram_nova_stt",
+          "provider": "nosotros",
+          "skills": ["voice_receive", "audio_transcribe"],
+          "note": "Funciona siempre — $0.006/min"
+        },
+        {
+          "name": "deepgram_aura_tts",
+          "provider": "nosotros",
+          "skills": ["voice_send"],
+          "note": "Funciona siempre — $3/M chars"
         }
       ]
     },
@@ -75,7 +99,7 @@
     {
       "id": "documents_pro",
       "name": "Documentos Pro",
-      "description": "Creación y manipulación completa de documentos PDF, Word, Excel y presentaciones",
+      "description": "Creación y manipulación completa de documentos PDF, Word, Excel y presentaciones — 100% local",
       "category": "documentos",
       "priority": 2,
       "alwaysWorks": true,
@@ -86,7 +110,8 @@
         "doc_generate",
         "excel_generate",
         "excel_read",
-        "presentation_create"
+        "presentation_create",
+        "invoice_generate"
       ],
       "intents": [
         "Crea un PDF",
@@ -99,14 +124,13 @@
         "Extrae datos del PDF",
         "Convertir a Word",
         "Exportar a PDF",
-        "Generar factur",
+        "Generar factura",
         "Crear un informe",
         "Hacer un report",
         "Excel de",
         "PowerPoint de",
         "Slides de",
-        "Documento sobre",
-        "Archivopdf"
+        "Documento sobre"
       ],
       "responses": {
         "pdf_created": "📄 PDF creado: {filename}. Encontrarás {pages} páginas con {content_type}.",
@@ -117,26 +141,45 @@
         "extract_failed": "⚠️ No pude extraer los datos. El documento parece estar protegido o corrupto.",
         "processing_large": "⏳ Procesando documento grande... {progress}% completado.",
         "template_suggest": "🎨 Tengo {count} plantillas disponibles para {doc_type}. ¿Cuál prefieres?",
-        "format_converted": "🔄 Convertido de {from_format} a {to_format}. Archivo: {filename}."
+        "format_converted": "🔄 Convertido de {from_format} a {to_format}. Archivo: {filename}.",
+        "invoice_created": "🧾 Factura #{number} generada: {amount} {currency}. PDF listo para enviar."
       },
       "requiredApis": [
         {
-          "name": "pdf_co",
+          "name": "wkhtmltopdf",
           "provider": "nosotros",
-          "skills": ["pdf_generate", "pdf_edit", "doc_generate", "excel_generate"],
-          "note": "Funciona siempre"
+          "skills": ["pdf_generate", "invoice_generate"],
+          "note": "Local en VPS. Funciona siempre"
         },
         {
-          "name": "mathpix",
+          "name": "pdftotext_tika",
           "provider": "nosotros",
-          "skills": ["pdf_read", "excel_read"],
-          "note": "Funciona siempre"
+          "skills": ["pdf_read"],
+          "note": "Local en VPS. Funciona siempre"
         },
         {
-          "name": "gamma",
+          "name": "qpdf_pdftk",
+          "provider": "nosotros",
+          "skills": ["pdf_edit"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "pandoc",
+          "provider": "nosotros",
+          "skills": ["doc_generate"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "python_openpyxl",
+          "provider": "nosotros",
+          "skills": ["excel_generate", "excel_read"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "python_pptx",
           "provider": "nosotros",
           "skills": ["presentation_create"],
-          "note": "Funciona siempre"
+          "note": "Local en VPS. Funciona siempre"
         }
       ]
     },
@@ -144,10 +187,10 @@
     {
       "id": "multimedia_creative",
       "name": "Multimedia Creative",
-      "description": "Creación y procesamiento de contenido multimedia: imágenes, videos y audio",
+      "description": "Creación y procesamiento de contenido multimedia: imágenes, videos — todo built-in",
       "category": "multimedia",
       "priority": 3,
-      "alwaysWorks": false,
+      "alwaysWorks": true,
       "skills": [
         "image_receive",
         "image_generate",
@@ -155,88 +198,66 @@
         "video_process",
         "video_edit",
         "video_create",
-        "audio_transcribe",
-        "audio_generate"
+        "ocr"
       ],
       "intents": [
         "Genera una imagen de",
         "Edita esta foto",
         "Procesa el video",
-        "Transcribe este audio",
         "Crea un video con",
         "¿Qué hay en esta imagen?",
-        "Haz música con",
         "Convierte video a",
         "Dibuja",
         "Crea una imagen",
         "Modifica la imagen",
         "Edita el video",
-        "Genera audio",
-        "Convierte a mp3",
-        "Añade música",
         "Subtítulos al video",
         "Foto de",
-        "Imagen de"
+        "Imagen de",
+        "Lee el texto de esta imagen"
       ],
       "responses": {
         "image_created": "🎨 Imagen generada: {description}. Estilo: {style}. ¿Quieres ajustarla?",
         "image_analyzed": "📸 Análisis completo: {objects} detectados. Contexto: {context}.",
         "video_processing": "🎬 Procesando video... {progress}% completado. Tiempo estimado: {eta}.",
-        "audio_transcribed": "🎙️ Transcripción lista: {words} palabras, {duration} de audio.",
+        "video_created": "🎬 Video creado: {duration}s. Estilo: {style}.",
         "creative_suggest": "💡 Tengo {count} opciones creativas para tu proyecto. ¿Quieres verlas?",
-        "api_missing": "⚠️ Esta función requiere {api}. Ve a Configuración > APIs para activarla.",
         "style_applied": "🖌️ Estilo '{style}' aplicado. Variaciones: {variations}.",
         "render_time": "⏱️ Tiempo de render: {time}. Calidad: {quality}.",
-        "transcription_ready": "📝 Texto extraído ({language}):\n\n{text_preview}..."
+        "ocr_complete": "📝 Texto extraído: {chars} caracteres, {language} detectado."
       },
       "requiredApis": [
         {
-          "name": "ollama",
-          "provider": "cliente",
-          "skills": ["image_receive", "video_process"],
-          "required": true,
-          "note": "OBLIGATORIO para análisis de imágenes/video"
+          "name": "ollamacloud_vision",
+          "provider": "nosotros",
+          "skills": ["image_receive", "video_process", "ocr"],
+          "note": "Funciona siempre — Ollama Cloud Vision"
         },
         {
-          "name": "openai_dalle",
-          "provider": "cliente",
+          "name": "stable_diffusion",
+          "provider": "nosotros",
           "skills": ["image_generate", "image_edit"],
-          "required": false,
-          "note": "Optional para generar/editar imágenes"
+          "note": "Funciona siempre — $0.01/imagen"
         },
         {
-          "name": "openai_tts",
-          "provider": "cliente",
-          "skills": ["audio_transcribe", "audio_generate"],
-          "required": false,
-          "note": "Opcional para voz/audio"
-        },
-        {
-          "name": "runway",
-          "provider": "cliente",
+          "name": "kling_fal",
+          "provider": "nosotros",
           "skills": ["video_create"],
-          "required": false,
-          "note": "Opcional para crear videos"
+          "note": "Funciona siempre — Kling 2.1 via fal.ai $0.15/5s"
         },
         {
-          "name": "suno",
-          "provider": "cliente",
-          "skills": ["audio_generate"],
-          "required": false,
-          "note": "Opcional para música"
+          "name": "ffmpeg",
+          "provider": "nosotros",
+          "skills": ["video_edit"],
+          "note": "Local en VPS. Funciona siempre"
         }
-      ],
-      "muxIntegration": {
-        "provider": "nosotros",
-        "skills": ["video_edit"],
-        "limit": "100 videos/mes"
-      }
+      ]
     },
 
     {
       "id": "productivity_plus",
       "name": "Productividad Plus",
-      "description": "Herramientas de productividad: resumen, traducción, extracción de datos y análisis de sentimiento",
+      "description": "Herramientas de productividad: resumen, traducción, clasificación, reescritura, extracción de datos y análisis de sentimiento",
       "category": "productividad",
       "priority": 4,
       "alwaysWorks": true,
@@ -245,7 +266,9 @@
         "translate",
         "extract_data",
         "sentiment",
-        "ocr",
+        "classify",
+        "rewrite",
+        "memory_search",
         "qrcode_generate",
         "qrcode_read"
       ],
@@ -254,7 +277,6 @@
         "Traduce al inglés",
         "Extrae los datos de",
         "¿Cómo se siente el autor?",
-        "Lee el texto de esta imagen",
         "Genera un código QR",
         "Escanea este QR",
         "Analiza el sentimiento",
@@ -266,49 +288,47 @@
         "Sentimiento de",
         "Crear QR",
         "Leer QR",
-        "Convierte a texto"
+        "Clasifica este mensaje",
+        "Reescribe con tono profesional",
+        "Busca en mi memoria"
       ],
       "responses": {
         "summarized": "📋 Resumen ({words} palabras → {summary_words}): {summary}",
         "translated": "🌐 Traducido a {language}: {translated_text}",
         "data_extracted": "📊 Datos extraídos: {fields} campos identificados. {accuracy}% de confianza.",
         "sentiment_analysis": "😊 Sentimiento: {sentiment} ({confidence}% confianza). Emociones detectadas: {emotions}.",
+        "classified": "🏷️ Clasificado como: {category} ({confidence}% confianza).",
+        "rewritten": "✍️ Texto reescrito con tono {tone}: {text_preview}",
+        "memory_found": "🧠 Encontré {count} recuerdos relevantes: {results}",
         "qr_created": "📱 QR generado: {type}. Escanea con tu cámara para {action}.",
-        "ocr_complete": "📝 Texto extraído: {chars} caracteres, {language} detectado.",
-        "summary_long": "📄 {summary}\n\nPuntos clave:\n{bullet_points}",
-        "translation_failed": "⚠️ No pude traducir. ¿El texto está en {detected_lang}?",
-        "extraction_fields": "📋 Campos disponibles:\n{fields_list}\n\n¿Cuáles necesitas?",
         "qr_type_options": "📱 Tipos de QR disponibles:\n• URL\n• Texto\n• Contacto\n• WiFi\n• Evento\n\n¿Cuál necesitas?"
       },
       "requiredApis": [
         {
-          "name": "ollama",
-          "provider": "cliente",
-          "skills": ["summarize", "extract_data", "sentiment", "ocr"],
-          "required": true,
-          "note": "OBLIGATORIO para análisis"
+          "name": "ollamacloud",
+          "provider": "nosotros",
+          "skills": ["summarize", "extract_data", "sentiment", "translate", "classify", "rewrite"],
+          "note": "Funciona siempre — Ollama Cloud (∞ tokens)"
         },
         {
-          "name": "deepl",
-          "provider": "cliente",
-          "skills": ["translate"],
-          "required": false,
-          "note": "Opcional - 500K chars gratis/mes"
-        }
-      ],
-      "internalTools": {
-        "qrcode": {
-          "provider": "sistema",
+          "name": "ollamacloud_nomic",
+          "provider": "nosotros",
+          "skills": ["memory_search"],
+          "note": "Funciona siempre — Nomic Embed"
+        },
+        {
+          "name": "qrencode",
+          "provider": "nosotros",
           "skills": ["qrcode_generate", "qrcode_read"],
-          "note": "Funciona siempre"
+          "note": "Local en VPS. Funciona siempre"
         }
-      }
+      ]
     },
 
     {
       "id": "automation_power",
       "name": "Automatización Power",
-      "description": "Automatización avanzada: navegador, webhooks, tareas programadas y web scraping",
+      "description": "Automatización avanzada: navegador, webhooks, tareas programadas y web scraping — 100% local",
       "category": "automatizacion",
       "priority": 5,
       "alwaysWorks": true,
@@ -317,7 +337,10 @@
         "webhook",
         "cron",
         "scraping",
-        "forms"
+        "form_create",
+        "web_search",
+        "web_fetch",
+        "web_create"
       ],
       "intents": [
         "Navega a esta web",
@@ -335,8 +358,9 @@
         "Monitoreo",
         "Tarea programada",
         "Repetir cada",
-        "Recordarme",
-        "Ejecutar automáticamente"
+        "Busca en internet",
+        "Crea un sitio web",
+        "Crea un formulario"
       ],
       "responses": {
         "browser_action": "🌐 Navegación completada. {actions} acciones ejecutadas en {time}s.",
@@ -348,20 +372,40 @@
         "browser_waiting": "🌐 Navegador abierto. Esperando: {wait_for}. Timeout: {timeout}s.",
         "cron_list": "📋 Tareas programadas:\n{tasks_list}\n\nTotal: {count} tareas activas.",
         "webhook_received": "🔔 Webhook recibido: {webhook_name}. Ejecutando acción configurada...",
-        "scraping_progress": "🕷️ Extrayendo datos... {progress}% - {items_found} elementos encontrados."
+        "scraping_progress": "🕷️ Extrayendo datos... {progress}% - {items_found} elementos encontrados.",
+        "web_created": "🌐 Sitio web creado: {site_name}. URL: {url}.",
+        "search_results": "🔍 Encontré {count} resultados para '{query}'."
       },
       "requiredApis": [
         {
-          "name": "internal",
-          "provider": "sistema",
-          "skills": ["browser", "webhook", "cron", "forms"],
-          "note": "Funciona siempre - sistema interno"
+          "name": "puppeteer_cheerio",
+          "provider": "nosotros",
+          "skills": ["browser", "scraping"],
+          "note": "Local en VPS. Funciona siempre"
         },
         {
-          "name": "oxylabs",
+          "name": "http_server",
           "provider": "nosotros",
-          "skills": ["scraping"],
-          "note": "Funciona siempre - 1000 requests/mes"
+          "skills": ["webhook", "form_create", "web_create"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "cron_systemd",
+          "provider": "nosotros",
+          "skills": ["cron"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "brave_search",
+          "provider": "nosotros",
+          "skills": ["web_search"],
+          "note": "Funciona siempre — free tier"
+        },
+        {
+          "name": "curl_fetch",
+          "provider": "nosotros",
+          "skills": ["web_fetch"],
+          "note": "Local en VPS. Funciona siempre"
         }
       ]
     },
@@ -369,26 +413,23 @@
     {
       "id": "business_essentials",
       "name": "Negocio Essentials",
-      "description": "Herramientas de negocio: facturas, reportes y notificaciones",
+      "description": "Herramientas de negocio: reportes, métricas, notificaciones y monitoreo",
       "category": "negocio",
       "priority": 6,
       "alwaysWorks": true,
       "skills": [
-        "invoice_generate",
         "report_generate",
         "metrics_dashboard",
         "notifications",
         "reviews_monitor"
       ],
       "intents": [
-        "Genera una factura",
         "Crea un reporte mensual",
         "Muestra métricas del negocio",
         "Envía notificación a",
         "Monitorea las reseñas",
         "Necesito un informe ejecutivo",
         "Dashboard de KPIs",
-        "Factura para",
         "Informe de",
         "Reporte de ventas",
         "Estadísticas",
@@ -399,105 +440,100 @@
         "Reviews"
       ],
       "responses": {
-        "invoice_created": "🧾 Factura #{number} generada: {amount} {currency}. PDF listo para enviar.",
         "report_ready": "📊 Reporte completado: {title}. {pages} páginas, {charts} gráficos.",
         "dashboard_ready": "📈 Dashboard activo en {url}. Métricas: {metrics_count} KPIs actualizados.",
         "notification_sent": "🔔 Notificación enviada a {recipients} destinatarios vía {channel}.",
         "reviews_summary": "⭐ Resumen de reseñas: {avg_rating}/5 ({count} reviews). Tendencia: {trend}.",
         "business_alert": "🚨 Alerta de negocio: {alert_type}. Requiere atención inmediata.",
-        "invoice_preview": "🧾 Vista previa:\nCliente: {client}\nConcepto: {concept}\nTotal: {total}\n\n¿Confirmas el envío?",
         "report_schedule": "📊 Reporte programado para el {date}. Frecuencia: {frequency}.",
         "metrics_alert": "📈 KPI en alerta:\n• {metric_name}: {metric_value} (-{decrease}%)\n\nRecomendación: {recommendation}"
       },
       "requiredApis": [
         {
-          "name": "internal",
-          "provider": "sistema",
-          "skills": ["metrics_dashboard", "notifications", "reviews_monitor"],
-          "note": "Funciona siempre - sistema interno"
+          "name": "wkhtmltopdf",
+          "provider": "nosotros",
+          "skills": ["report_generate"],
+          "note": "Local en VPS. Funciona siempre"
         },
         {
-          "name": "pdf_co",
+          "name": "chartsjs_html",
           "provider": "nosotros",
-          "skills": ["invoice_generate", "report_generate"],
-          "note": "Funciona siempre"
+          "skills": ["metrics_dashboard"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "canales_existentes",
+          "provider": "nosotros",
+          "skills": ["notifications"],
+          "note": "Usa canales de comunicación ya configurados"
+        },
+        {
+          "name": "scraping_cron",
+          "provider": "nosotros",
+          "skills": ["reviews_monitor"],
+          "note": "Local en VPS. Funciona siempre"
         }
       ]
     },
 
     {
-      "id": "voice_audio",
-      "name": "Voz & Audio",
-      "description": "Capacidades de voz y audio: transcribir, generar y procesar contenido sonoro",
-      "category": "voz",
+      "id": "email_marketing",
+      "name": "Email Marketing",
+      "description": "Capacidades completas de email marketing: newsletters, templates, tracking y drip campaigns",
+      "category": "marketing",
       "priority": 7,
-      "alwaysWorks": false,
+      "alwaysWorks": true,
       "skills": [
-        "voice_receive",
-        "voice_send",
-        "audio_transcribe",
-        "audio_generate"
+        "newsletter_send",
+        "email_templates",
+        "email_tracking",
+        "email_drip"
       ],
       "intents": [
-        "Escucha este voicenote",
-        "Convierte voz a texto",
-        "Genera voz con",
-        "Hazme un audio de",
-        "Transcribe la reunión",
-        "Responde con voz",
-        "Nota de voz",
-        "Audio de",
-        "Voz de",
-        "Habla con",
-        "Responde hablando",
-        "Escuchéste voicenote",
-        "Nota de voz"
+        "Envía un newsletter",
+        "Crea un template de email",
+        "¿Cuántos abrieron el email?",
+        "Configura una secuencia de emails",
+        "Newsletter para clientes",
+        "Enviar email masivo",
+        "Campaña de email",
+        "Secuencia de bienvenida",
+        "Tracking de emails"
       ],
       "responses": {
-        "voice_received": "🎙️ Mensaje de voz procesado: {duration}s. Transcripción: {text}",
-        "voice_sent": "🔊 Audio enviado: {duration}s. Voz: {voice_type}.",
-        "audio_processing": "🎧 Procesando audio... Detectado: {language}, {speakers} voces.",
-        "audio_generated": "🎵 Audio generado: {type}, {duration}s. Archivo: {filename}.",
-        "api_required": "⚠️ Para usar voz necesito OPENAI_API_KEY. Configúrala en el panel.",
-        "voice_options": "🎤 Voces disponibles:\n• Nova (femenina, clara)\n• Alloy (neutral)\n• Echo (masculina)\n• Shimmer (suave)\n\n¿Cuál prefieres?",
-        "transcription_confidence": "📝 Confianza de transcripción: {confidence}%\n\nTexto:\n{text}\n\n¿Necesitas correcciones?",
-        "audio_format": "🎵 Formato: {format}\nDuración: {duration}\nCalidad: {quality}\n\n¿Lo envío como respuesta?"
+        "newsletter_sent": "📧 Newsletter enviado:\n\n📬 Destinatarios: {count}\n📊 Abiertos: {open_rate}%\n🔗 Clicks: {click_rate}%\n\n✅ Campaña completada.",
+        "template_created": "📝 Template creado: {template_name}. Vista previa disponible.",
+        "tracking_report": "📊 Tracking:\n• Enviados: {sent}\n• Abiertos: {opened} ({open_rate}%)\n• Clicks: {clicks} ({click_rate}%)\n• Rebotados: {bounced}",
+        "drip_configured": "📧 Secuencia configurada: {steps} pasos, intervalo: {interval}. Primera entrega: {first_send}."
       },
       "requiredApis": [
         {
-          "name": "openai_whisper",
-          "provider": "cliente",
-          "skills": ["voice_receive", "audio_transcribe"],
-          "required": true,
-          "note": "OPENAI_API_KEY requerido"
+          "name": "postfix_smtp",
+          "provider": "nosotros",
+          "skills": ["newsletter_send", "email_drip"],
+          "note": "SMTP local — nuestro dominio. Funciona siempre"
         },
         {
-          "name": "openai_tts",
-          "provider": "cliente",
-          "skills": ["voice_send", "audio_generate"],
-          "required": true,
-          "note": "OPENAI_API_KEY requerido"
+          "name": "sistema",
+          "provider": "nosotros",
+          "skills": ["email_templates", "email_tracking"],
+          "note": "Local en VPS. Funciona siempre"
         }
-      ],
-      "voiceProfiles": {
-        "nova": { "language": "es", "gender": "female", "style": "claro" },
-        "alloy": { "language": "es", "gender": "neutral", "style": "natural" },
-        "echo": { "language": "es", "gender": "male", "style": "profundo" },
-        "shimmer": { "language": "es", "gender": "female", "style": "suave" }
-      }
+      ]
     },
 
     {
       "id": "google_workspace",
       "name": "Google Workspace",
-      "description": "Integración con herramientas de Google: Calendar y Sheets",
+      "description": "Integración con herramientas de Google: Calendar, Sheets, Maps y Directions — nosotros configuramos",
       "category": "integracion",
       "priority": 8,
-      "alwaysWorks": false,
+      "alwaysWorks": true,
       "skills": [
         "calendar",
         "sheets",
-        "location"
+        "location",
+        "directions"
       ],
       "intents": [
         "Agrega evento al calendario",
@@ -514,14 +550,17 @@
         "Spreadsheet",
         "Mapa de",
         "Coordenadas de",
-        "Dirección de"
+        "Dirección de",
+        "¿Cómo llego a",
+        "Ruta a",
+        "Distancia a"
       ],
       "responses": {
         "calendar_added": "📅 Evento creado: {title} el {date}. Recordatorio: {reminder}.",
         "calendar_query": "📆 Tu agenda: {events_count} eventos hoy. Próximo: {next_event}.",
         "sheet_updated": "📊 Sheet actualizado: {cells} celdas modificadas. Archivo: {filename}.",
         "location_found": "📍 Ubicación: {place} ({distance} de ti). Coordenadas: {coords}.",
-        "oauth_required": "🔐 Necesito acceso a Google. Inicia sesión en Configuración > Google Auth.",
+        "directions_found": "🗺️ Ruta a {destination}: {distance}, {duration}. Vía: {route}.",
         "calendar_conflict": "⚠️ Conflicto: {conflict_event} está programado a la misma hora.\n\nOpciones:\n• Mover {new_time}\n• Reemplazar evento existente\n• Cancelar",
         "location_not_found": "📍 No encontré '{place}'. ¿Quieres sugerencias similares?\n\n{suggestions}",
         "sheet_created": "📊 Sheet creado: {filename}\nColumnas: {columns}\nFilas iniciales: {rows}\n\nURL: {url}",
@@ -529,85 +568,107 @@
       },
       "requiredApis": [
         {
-          "name": "google_oauth",
-          "provider": "cliente",
-          "skills": ["calendar", "sheets"],
-          "required": true,
-          "note": "GOOGLE_OAUTH requerido"
+          "name": "google_calendar_api",
+          "provider": "nosotros",
+          "skills": ["calendar"],
+          "note": "Nosotros configuramos la cuenta del cliente. Funciona siempre"
         },
         {
-          "name": "google_maps",
-          "provider": "cliente",
-          "skills": ["location"],
-          "required": false,
-          "note": "Opcional - $200 gratis/mes"
+          "name": "google_sheets_api",
+          "provider": "nosotros",
+          "skills": ["sheets"],
+          "note": "Nosotros configuramos la cuenta del cliente. Funciona siempre"
+        },
+        {
+          "name": "google_maps_api",
+          "provider": "nosotros",
+          "skills": ["location", "directions"],
+          "note": "Nuestra API key. Funciona siempre — ~$5/mes"
         }
       ]
     },
 
     {
-      "id": "web_development",
-      "name": "Desarrollo Web",
-      "description": "Creación y publicación de sitios web, landing pages y formularios con Cloudflare Tunnel",
+      "id": "dev_tools",
+      "name": "Herramientas de Desarrollo",
+      "description": "Ejecución de código, git y gestión de repositorios — 100% local",
       "category": "desarrollo",
-      "priority": 6,
+      "priority": 9,
       "alwaysWorks": true,
       "skills": [
-        "web_create",
-        "form_create",
-        "landing_page",
-        "web_publish",
-        "newsletter_send",
-        "email_templates",
         "code_execute",
-        "git_commit"
+        "git_commit",
+        "repo_read",
+        "reminders",
+        "tasks"
       ],
       "intents": [
-        "Crea un sitio web",
-        "Hazme una landing page",
-        "Necesito un formulario",
-        "Publica esta web",
-        "Envía un newsletter",
         "Ejecuta este código",
         "Git commit",
-        "Crea una página web",
-        "Haz un formulario de contacto",
-        "Publicar sitio",
-        "Newsletter para clientes",
-        "Sube cambios a git",
-        "Landing page para negocio",
-        "Formulario de registro",
-        "Página de ventas",
-        "Enviar email masivo",
+        "Lee el repositorio",
+        "Recuérdame mañana",
+        "Agrega tarea",
         "Corre código",
-        "Commit estos cambios"
+        "Commit estos cambios",
+        "Sube cambios a git",
+        "Mis pendientes",
+        "Lista de tareas",
+        "Recordatorio para"
       ],
       "responses": {
-        "web_created": "🌐 **Sitio web creado:** {site_name}\n\n📁 Ubicación: {path}\n🔗 URL local: {local_url}\n\n✅ Listo para publicar. ¿Quieres que lo publique con Cloudflare Tunnel?",
-        "form_created": "📝 **Formulario creado:** {form_name}\n\n📋 Campos: {fields}\n📧 Envía a: {email}\n\n✅ Formulario listo. ¿Necesitas integrarlo en una web existente?",
-        "landing_created": "🎯 **Landing page creada:** {page_name}\n\n🎨 Tipo: {template_type}\n📱 Responsive: Sí\n⚡ Tiempo de carga: < 2s\n\n✅ Listo. ¿Publicamos?",
-        "web_published": "🚀 **Web publicada:**\n\n🌐 URL pública: {public_url}\n⏱️ Tiempo de publicación: {time}s\n🔒 SSL: Activado\n\n✅ Tu web está online. ¿Quieres QR para compartir?",
-        "newsletter_sent": "📧 **Newsletter enviado:**\n\n📬 Destinatarios: {count}\n📊 Abiertos: {open_rate}%\n🔗 Clicks: {click_rate}%\n\n✅ Campaña completada.",
-        "code_executed": "💻 **Código ejecutado:**\n\n⏱️ Tiempo: {execution_time}ms\n📤 Output:\n```\n{output}\n```\n\n✅ Completado sin errores.",
-        "git_committed": "📦 **Git commit realizado:**\n\n📝 Mensaje: {commit_message}\n📊 Archivos modificados: {files_count}\n🔄 Branch: {branch}\n\n✅ Cambios guardados. ¿Push al repositorio?",
-        "publish_confirm": "🚀 ¿Publicar web?\n\n📁 Archivos listos: {files_count}\n🌐 Subdominio sugerido: {subdomain}\n⏱️ Tiempo estimado: 30s\n\nResponde OK para confirmar.",
-        "template_list": "🎨 **Plantillas disponibles:**\n\n1. Landing empresarial\n2. Restaurante\n3. Hotel\n4. Tienda online\n5. Portfolio personal\n6. Blog\n7. Evento\n8. Formulario contacto\n\n¿Cuál prefieres?",
-        "error_publish": "⚠️ Error al publicar:\n\n{error}\n\n¿Quieres reintentar?",
-        "qr_for_web": "📱 **QR generado para tu web:**\n\n{qr_url}\n\nComparte este código para que accedan directamente."
+        "code_executed": "💻 Código ejecutado:\n\n⏱️ Tiempo: {execution_time}ms\n📤 Output:\n```\n{output}\n```\n\n✅ Completado sin errores.",
+        "git_committed": "📦 Git commit realizado:\n\n📝 Mensaje: {commit_message}\n📊 Archivos modificados: {files_count}\n🔄 Branch: {branch}\n\n✅ Cambios guardados.",
+        "repo_read": "📂 Repositorio leído: {repo_name}. {files} archivos, {branches} branches.",
+        "reminder_set": "⏰ Recordatorio configurado para {date}. Te avisaré por {channel}.",
+        "task_added": "✅ Tarea agregada: {task_name}. Prioridad: {priority}.",
+        "tasks_list": "📋 Tareas pendientes:\n{tasks_list}\n\nTotal: {count} pendientes."
       },
-      "requiredApis": []
+      "requiredApis": [
+        {
+          "name": "sandbox_local",
+          "provider": "nosotros",
+          "skills": ["code_execute"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "git",
+          "provider": "nosotros",
+          "skills": ["git_commit", "repo_read"],
+          "note": "Local en VPS. Funciona siempre"
+        },
+        {
+          "name": "cron_canales",
+          "provider": "nosotros",
+          "skills": ["reminders", "tasks"],
+          "note": "Local en VPS. Funciona siempre"
+        }
+      ]
     },
 
     {
       "id": "master_bundle",
-      "name": "Super Agente - Todo en Uno",
-      "description": "Bundle maestro con todas las habilidades del Super Agente activas simultáneamente",
+      "name": "Super Agente — Todo en Uno",
+      "description": "Bundle maestro con las 58 habilidades built-in activas simultáneamente",
       "category": "master",
       "priority": 99,
-      "alwaysWorks": false,
+      "alwaysWorks": true,
       "skills": [
         "email_send",
         "email_read",
+        "sms_send",
+        "whatsapp_send",
+        "telegram_send",
+        "discord_send",
+        "voice_receive",
+        "voice_send",
+        "audio_transcribe",
+        "image_receive",
+        "image_generate",
+        "image_edit",
+        "video_process",
+        "video_create",
+        "video_edit",
+        "ocr",
         "pdf_generate",
         "pdf_read",
         "pdf_edit",
@@ -615,30 +676,41 @@
         "excel_generate",
         "excel_read",
         "presentation_create",
-        "image_receive",
-        "video_process",
-        "video_edit",
-        "sms_send",
+        "invoice_generate",
         "browser",
         "scraping",
-        "forms",
+        "web_search",
+        "web_fetch",
+        "web_create",
+        "form_create",
         "cron",
         "webhook",
-        "invoice_generate",
-        "report_generate",
-        "qrcode_generate",
         "summarize",
         "extract_data",
         "sentiment",
-        "ocr",
-        "web_create",
-        "form_create",
-        "landing_page",
-        "web_publish",
+        "translate",
+        "memory_search",
+        "classify",
+        "rewrite",
+        "report_generate",
+        "qrcode_generate",
+        "qrcode_read",
+        "metrics_dashboard",
+        "notifications",
+        "reviews_monitor",
         "newsletter_send",
         "email_templates",
+        "email_tracking",
+        "email_drip",
         "code_execute",
-        "git_commit"
+        "git_commit",
+        "repo_read",
+        "reminders",
+        "tasks",
+        "calendar",
+        "sheets",
+        "location",
+        "directions"
       ],
       "intents": [
         "Activa todo",
@@ -653,99 +725,156 @@
         "Todos los bundles"
       ],
       "responses": {
-        "master_activated": "🚀 **Super Agente ACTIVADO**\n\n✅ {skills_count} habilidades disponibles\n✅ {bundles_count} bundles activos\n✅ APIs: {apis_status}\n\n¿En qué puedo ayudarte?",
-        "master_status": "📊 Estado Super Agente:\n• Documentos: ✅ ({docs_count} disponibles)\n• Comunicación: ✅ ({comm_channels} canales)\n• Multimedia: ⚡ ({media_tools} herramientas)\n• Automatización: ✅ Todas activas",
-        "master_deactivated": "⚠️ Super Agente desactivado. Modo básico restaurado.",
-        "api_status": "📋 Estado de APIs:\n✅ {working_apis} funcionando\n⚠️ {partial_apis} parcialmente\n❌ {failed_apis} requieren configuración\n\nDetalles:\n{api_details}",
-        "capability_test": "🧪 Prueba de capacidades:\n{test_results}\n\n{working}/{total} habilidades operativas."
+        "master_activated": "🚀 **Super Agente ACTIVADO**\n\n✅ 58 habilidades built-in disponibles\n✅ 20 automatizaciones activas\n✅ Todas las APIs funcionan\n✅ Costo: ~$22/mes\n\n¿En qué puedo ayudarte?",
+        "master_status": "📊 Estado Super Agente v2.0:\n• Comunicación: ✅ (9 canales)\n• Multimedia: ✅ (7 herramientas)\n• Documentos: ✅ (8 formatos)\n• Web & Auto: ✅ (8 herramientas)\n• Inteligencia: ✅ (7 capacidades)\n• Negocio: ✅ (6 herramientas)\n• Email Mkt: ✅ (4 herramientas)\n• Código: ✅ (3 herramientas)\n• Productividad: ✅ (2 herramientas)\n• Google WS: ✅ (4 integraciones)",
+        "capability_test": "🧪 Prueba de capacidades:\n{test_results}\n\n58/58 habilidades operativas."
       },
       "requiredApis": [
         {
-          "name": "resend",
+          "name": "postfix_dovecot",
           "provider": "nosotros",
-          "note": "Email - siempre"
+          "note": "Email — Local. Siempre"
         },
         {
-          "name": "pdf_co",
+          "name": "deepgram",
           "provider": "nosotros",
-          "note": "Documentos - siempre"
+          "note": "Voz — ~$5/mes"
         },
         {
-          "name": "mathpix",
+          "name": "stable_diffusion",
           "provider": "nosotros",
-          "note": "Lectura PDF - siempre"
+          "note": "Imágenes — ~$5/mes"
         },
         {
-          "name": "ollama",
-          "provider": "cliente",
-          "note": "Análisis - obligatorio"
+          "name": "kling_fal",
+          "provider": "nosotros",
+          "note": "Video — ~$7/mes"
+        },
+        {
+          "name": "ollamacloud",
+          "provider": "nosotros",
+          "note": "Inteligencia — Incluido (∞)"
+        },
+        {
+          "name": "google_apis",
+          "provider": "nosotros",
+          "note": "Calendar + Sheets + Maps — ~$5/mes"
         }
       ],
       "subBundles": [
         "communication_core",
         "documents_pro",
+        "multimedia_creative",
         "productivity_plus",
         "automation_power",
-        "business_essentials"
-      ],
-      "optionalBundles": [
-        "multimedia_creative",
-        "voice_audio",
-        "google_workspace"
+        "business_essentials",
+        "email_marketing",
+        "google_workspace",
+        "dev_tools"
       ]
     }
   ],
 
   "contextMapping": {
-    "consultoria": {
-      "defaultBundles": ["documents_pro", "productivity_plus"],
-      "suggestedBundles": ["communication_core", "automation_power"],
-      "optionalBundles": ["voice_audio"]
+    "_note": "En v2.0 TODOS los skill bundles están siempre activos (58 skills built-in). El contextMapping ahora sirve para recomendar qué AUTOMATIZACIONES activar por defecto según el tipo de negocio.",
+
+    "restaurante": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-12_invoice_autopilot", "A-13_appointment_bot", "A-14_review_responder", "A-15_daily_report", "A-18_order_manager"],
+        "suggested": ["A-04_google_my_business", "A-17_product_catalog"],
+        "optional": ["A-11_newsletter_auto", "A-20_inventory_alert"],
+        "requires": {"A-13": "google_calendar", "A-04": "google_my_business"}
+      }
+    },
+    "hotel": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-04_google_my_business", "A-13_appointment_bot", "A-14_review_responder", "A-15_daily_report"],
+        "suggested": ["A-06_lead_capture", "A-11_newsletter_auto"],
+        "optional": ["A-05_seo_content_creator", "A-16_customer_followup"],
+        "requires": {"A-13": "google_calendar", "A-04": "google_my_business"}
+      }
+    },
+    "tienda": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-12_invoice_autopilot", "A-17_product_catalog", "A-19_payment_links", "A-20_inventory_alert"],
+        "suggested": ["A-15_daily_report", "A-06_lead_capture"],
+        "optional": ["A-18_order_manager", "A-11_newsletter_auto"],
+        "requires": {"A-19": "stripe"}
+      }
+    },
+    "servicios": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-05_seo_content_creator", "A-06_lead_capture", "A-12_invoice_autopilot", "A-13_appointment_bot", "A-16_customer_followup"],
+        "suggested": ["A-15_daily_report", "A-14_review_responder"],
+        "optional": ["A-10_landing_page_express", "A-11_newsletter_auto"],
+        "requires": {"A-13": "google_calendar"}
+      }
     },
     "ecommerce": {
-      "defaultBundles": ["communication_core", "business_essentials"],
-      "suggestedBundles": ["documents_pro", "automation_power"],
-      "optionalBundles": ["multimedia_creative"]
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-06_lead_capture", "A-17_product_catalog", "A-18_order_manager", "A-19_payment_links", "A-20_inventory_alert"],
+        "suggested": ["A-01_meta_ads_manager", "A-03_social_scheduler", "A-12_invoice_autopilot"],
+        "optional": ["A-15_daily_report", "A-07_competitor_watch"],
+        "requires": {"A-19": "stripe", "A-01": "meta_ads"}
+      }
     },
-    "agencia": {
-      "defaultBundles": ["multimedia_creative", "documents_pro"],
-      "suggestedBundles": ["automation_power", "communication_core"],
-      "optionalBundles": ["voice_audio", "google_workspace"]
+    "salud_belleza": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-13_appointment_bot", "A-14_review_responder", "A-15_daily_report", "A-16_customer_followup"],
+        "suggested": ["A-06_lead_capture", "A-12_invoice_autopilot"],
+        "optional": ["A-04_google_my_business", "A-10_landing_page_express"],
+        "requires": {"A-13": "google_calendar"}
+      }
+    },
+    "fitness": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-13_appointment_bot", "A-15_daily_report", "A-16_customer_followup"],
+        "suggested": ["A-06_lead_capture", "A-11_newsletter_auto"],
+        "optional": ["A-01_meta_ads_manager", "A-10_landing_page_express"],
+        "requires": {"A-13": "google_calendar"}
+      }
     },
     "inmobiliaria": {
-      "defaultBundles": ["communication_core", "documents_pro"],
-      "suggestedBundles": ["multimedia_creative", "business_essentials"],
-      "optionalBundles": ["google_workspace"]
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-05_seo_content_creator", "A-06_lead_capture", "A-10_landing_page_express", "A-15_daily_report"],
+        "suggested": ["A-13_appointment_bot", "A-16_customer_followup"],
+        "optional": ["A-01_meta_ads_manager", "A-03_social_scheduler"],
+        "requires": {"A-13": "google_calendar"}
+      }
     },
-    "freelancer": {
-      "defaultBundles": ["productivity_plus", "documents_pro"],
-      "suggestedBundles": ["communication_core"],
-      "optionalBundles": ["voice_audio", "google_workspace"]
+    "educacion": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-05_seo_content_creator", "A-06_lead_capture", "A-13_appointment_bot"],
+        "suggested": ["A-11_newsletter_auto", "A-15_daily_report"],
+        "optional": ["A-10_landing_page_express", "A-16_customer_followup"],
+        "requires": {"A-13": "google_calendar"}
+      }
     },
-    "medico": {
-      "defaultBundles": ["documents_pro", "communication_core"],
-      "suggestedBundles": ["productivity_plus"],
-      "optionalBundles": ["voice_audio"]
+    "agencia_marketing": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-01_meta_ads_manager", "A-02_post_creator", "A-03_social_scheduler", "A-05_seo_content_creator", "A-07_competitor_watch"],
+        "suggested": ["A-06_lead_capture", "A-09_blog_autopilot", "A-10_landing_page_express"],
+        "optional": ["A-11_newsletter_auto", "A-12_invoice_autopilot"],
+        "requires": {"A-01": "meta_ads", "A-09": "wordpress"}
+      }
     },
-    "abogado": {
-      "defaultBundles": ["documents_pro", "productivity_plus"],
-      "suggestedBundles": ["communication_core", "business_essentials"],
-      "optionalBundles": ["voice_audio", "google_workspace"]
-    },
-    "restaurante": {
-      "defaultBundles": ["communication_core", "business_essentials"],
-      "suggestedBundles": ["multimedia_creative"],
-      "optionalBundles": []
-    },
-    "coach": {
-      "defaultBundles": ["communication_core", "documents_pro"],
-      "suggestedBundles": ["voice_audio", "productivity_plus"],
-      "optionalBundles": ["automation_power"]
-    },
-    "marketing": {
-      "defaultBundles": ["multimedia_creative", "communication_core"],
-      "suggestedBundles": ["documents_pro", "automation_power"],
-      "optionalBundles": ["voice_audio", "google_workspace"]
+    "generico": {
+      "skillBundles": "all_active",
+      "automations": {
+        "default": ["A-02_post_creator", "A-12_invoice_autopilot", "A-15_daily_report"],
+        "suggested": ["A-06_lead_capture", "A-14_review_responder"],
+        "optional": ["A-10_landing_page_express", "A-13_appointment_bot"]
+      }
     }
   },
 
@@ -755,7 +884,6 @@
     "count": "Cantidad",
     "time": "Tiempo transcurrido",
     "platform": "Plataforma de comunicación",
-    "api": "API requerida",
     "accuracy": "Porcentaje de precisión",
     "sentiment": "Sentimiento detectado",
     "language": "Idioma detectado",
@@ -838,16 +966,38 @@
     "skills_count": "Total de habilidades",
     "bundles_count": "Total de bundles",
     "apis_status": "Estado de APIs",
-    "working_apis": "APIs funcionando",
-    "partial_apis": "APIs parciales",
-    "failed_apis": "APIs fallidas",
-    "api_details": "Detalles de APIs",
-    "test_results": "Resultados de prueba",
-    "working": "Habilidades funcionando",
-    "total": "Total de habilidades",
-    "docs_count": "Herramientas de documentos",
-    "comm_channels": "Canales de comunicación",
-    "media_tools": "Herramientas multimedia"
+    "description": "Descripción",
+    "destination": "Destino",
+    "route": "Ruta sugerida",
+    "category": "Categoría clasificada",
+    "tone": "Tono de escritura",
+    "results": "Resultados encontrados",
+    "template_name": "Nombre del template",
+    "sent": "Emails enviados",
+    "opened": "Emails abiertos",
+    "open_rate": "Tasa de apertura",
+    "clicks": "Clicks en enlaces",
+    "click_rate": "Tasa de clicks",
+    "bounced": "Emails rebotados",
+    "steps": "Pasos de la secuencia",
+    "interval": "Intervalo entre pasos",
+    "first_send": "Primera entrega",
+    "execution_time": "Tiempo de ejecución",
+    "output": "Salida del código",
+    "commit_message": "Mensaje del commit",
+    "files_count": "Archivos modificados",
+    "branch": "Branch de git",
+    "repo_name": "Nombre del repositorio",
+    "files": "Archivos",
+    "branches": "Branches",
+    "task_name": "Nombre de la tarea",
+    "priority": "Prioridad",
+    "summary_words": "Palabras del resumen",
+    "reminder": "Recordatorio",
+    "next_event": "Próximo evento",
+    "cells": "Celdas modificadas",
+    "site_name": "Nombre del sitio",
+    "query": "Consulta de búsqueda"
   },
 
   "activationCommands": {

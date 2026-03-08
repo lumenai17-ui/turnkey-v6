@@ -1,66 +1,118 @@
 # FASE 6: ACTIVACIÓN
 
-**Estado:** ⏳ Pendiente
+**Estado:** ✅ COMPLETADO  
+**Fecha:** 2026-03-07  
 **Dependencias:** FASE 5 completada
 
 ---
 
-## 📋 Resumen
+## 📋 PROPÓSITO
 
-Iniciar servicios, ejecutar smoke tests, verificar funcionamiento y documentar rollback.
+Iniciar servicios, ejecutar smoke tests (5 tests), verificar funcionamiento completo, generar reporte de activación, y proporcionar rollback si algo falla.
 
 ---
 
-## 📁 Archivos en esta Fase
+## 📦 REQUISITOS
 
-### Documentación
-| Archivo | Estado | Descripción |
-|---------|--------|-------------|
-| `README.md` | ✅ | Este archivo |
-| `ANALISIS.md` | ⏳ | Qué hace, brechas, dependencias |
-| `DISEÑO.md` | ⏳ | Propuestas y decisiones |
-| `DECISIONES.md` | ⏳ | Registro de decisiones |
-| `PREGUNTAS.md` | ⏳ | Preguntas y respuestas |
-| `CHECKLIST.md` | ⏳ | Checklist de validación |
-| `EDGE-CASES.md` | ⏳ | Casos especiales |
+### Dependencias del Sistema
+| Requisito | Versión | Notas |
+|-----------|---------|-------|
+| Bash | >= 4.0 | Shell scripts |
+| curl | cualquiera | Health checks |
+| jq | >= 1.5 | Validación JSON |
+| systemctl | cualquiera | Gestión de servicios |
+
+### Dependencias de Fases
+| Fase | Archivo | Descripción |
+|------|---------|-------------|
+| FASE 1 | `turnkey-config.json` | Configuración base |
+| FASE 4 | `SOUL.md`, `USER.md` | Archivos de identidad |
+| FASE 3 | `gateway.json` | Config del gateway |
+
+---
+
+## ✅ PROGRESO
+
+| Etapa | Estado |
+|-------|--------|
+| ANÁLISIS | ✅ 100% |
+| DISEÑO | ✅ 100% |
+| DECISIONES | ✅ 100% |
+| CODING | ✅ 100% |
+| AUDITORÍA | ✅ 100% |
+
+---
+
+## 📁 ARCHIVOS
 
 ### Scripts
-| Archivo | Estado | Descripción |
+| Archivo | Líneas | Descripción |
 |---------|--------|-------------|
-| `activation.sh` | ⏳ | Script principal |
-| `scripts/smoke-test.sh` | ⏳ | Tests de humo |
-| `scripts/rollback.sh` | ⏳ | Rollback si falla |
-| `scripts/register-dashboard.sh` | ⏳ | Registrar en dashboard |
+| `scripts/activation.sh` | 298 | Script principal — 4 pasos + 5 smoke tests |
+| `scripts/rollback.sh` | 84 | Rollback — stop services, backup, cleanup |
 
-### Config
-| Archivo | Estado | Descripción |
-|---------|--------|-------------|
-| `config/smoke-tests.json` | ⏳ | Lista de tests a ejecutar |
+### Documentación
+| Archivo | Descripción |
+|---------|-------------|
+| `ANALISIS.md` | Análisis de la fase |
+| `DISEÑO.md` | Diseño de scripts |
+| `DECISIONES.md` | Decisiones aprobadas |
+| `CHECKLIST.md` | Checklist de activación |
+| `AUDITORIA.md` | Resultado de auditoría |
 
 ---
 
 ## 🔄 Flujo de la Fase
 
 ```
-1. INICIAR SERVICES → systemctl start para cada agente
-2. SMOKE TESTS → Gateway responde, modelo funciona, Telegram OK
-3. VERIFICAR LOGS → Sin errores críticos
-4. REGISTRAR EN DASHBOARD → Si aplica
-5. BACKUP INICIAL → Snapshot del estado funcionando
-6. DOCUMENTAR → Guardar info de acceso, rollback plan
+1. VERIFICAR PREREQUISITOS → Config, identidad, Node.js
+2. INICIAR SERVICES → systemctl start openclaw-gateway
+3. SMOKE TESTS (5):
+   ├── Test 1: Archivos de configuración (JSON válido)
+   ├── Test 2: Archivos de identidad (SOUL.md, USER.md, HEART.md)
+   ├── Test 3: Health check del gateway (puerto)
+   ├── Test 4: Validación de canales (Telegram token)
+   └── Test 5: Estructura de directorios
+4. GENERAR REPORTE → activation-report.json
 ```
 
 ---
 
-## ✅ Progreso
+## 🚀 USO
 
-| Etapa | Estado |
-|-------|--------|
-| ANÁLISIS | ⏳ 0% |
-| DISEÑO | ⏳ 0% |
-| CODING | ⏳ 0% |
-| AUDITORÍA | ⏳ 0% |
+```bash
+# Activación completa
+./scripts/activation.sh --agent-name "mi-agente" --port 18789 --config /path/to/config.json
+
+# Modo simulación
+./scripts/activation.sh --agent-name "mi-agente" --dry-run
+
+# Rollback si algo falla
+./scripts/rollback.sh --agent-name "mi-agente"
+```
 
 ---
 
-*Pendiente de iniciar*
+## 📄 OUTPUT
+
+El script genera:
+- `~/.openclaw/workspace/turnkey/activation-report.json` — Reporte con tests pasados/fallidos
+
+---
+
+## ⚠️ ROLLBACK
+
+Si la activación falla, usar `rollback.sh`:
+
+```bash
+./scripts/rollback.sh --agent-name "mi-agente"
+```
+
+Esto ejecuta:
+1. **Stop services** — `systemctl --user stop openclaw-gateway`
+2. **Backup estado** — Copia config actual a `.bak`
+3. **Limpiar** — Remover archivos parciales
+
+---
+
+**Fase anterior:** [05-bot-config](../05-bot-config/)

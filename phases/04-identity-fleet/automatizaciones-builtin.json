@@ -1,0 +1,421 @@
+{
+  "version": "2.0.0",
+  "updated": "2026-03-07",
+  "description": "20 automatizaciones built-in del Agente en Mano",
+  "automations": {
+    "marketing": [
+      {
+        "id": "A-1",
+        "name": "meta_ads_manager",
+        "display_name": "Meta Ads Manager",
+        "description": "Crear campañas, subir creativos, leer métricas, optimizar",
+        "trigger": ["manual", "cron", "webhook"],
+        "skills_required": ["image_generate", "rewrite", "report_generate", "browser", "scraping"],
+        "external_apis": ["meta_marketing_api"],
+        "config": {
+          "meta_access_token": "",
+          "meta_ad_account_id": "",
+          "default_objective": "CONVERSIONS"
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-2",
+        "name": "post_creator",
+        "display_name": "Post Creator",
+        "description": "Crear contenido visual: imagen + copy para Instagram/Facebook/LinkedIn",
+        "trigger": ["manual", "cron"],
+        "skills_required": ["image_generate", "rewrite", "summarize"],
+        "external_apis": [],
+        "config": {
+          "brand_colors": [],
+          "brand_fonts": [],
+          "default_platform": "instagram",
+          "templates_dir": "templates/posts/"
+        },
+        "phase": "F4",
+        "status": "new"
+      },
+      {
+        "id": "A-3",
+        "name": "social_scheduler",
+        "display_name": "Social Scheduler",
+        "description": "Programar publicaciones en redes sociales con calendario",
+        "trigger": ["cron"],
+        "skills_required": ["cron", "webhook", "image_generate", "rewrite"],
+        "external_apis": ["meta_api", "linkedin_api"],
+        "config": {
+          "schedule": "09:00,13:00,18:00",
+          "timezone": "America/Bogota",
+          "platforms": ["instagram", "facebook"],
+          "auto_publish": false
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-4",
+        "name": "google_my_business",
+        "display_name": "Google My Business Manager",
+        "description": "Responder reseñas, actualizar info, subir fotos",
+        "trigger": ["cron", "webhook"],
+        "skills_required": ["sentiment", "rewrite", "scraping", "image_generate"],
+        "external_apis": ["google_business_api"],
+        "config": {
+          "business_id": "",
+          "auto_respond_reviews": false,
+          "review_check_interval": "6h"
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-5",
+        "name": "seo_content_creator",
+        "display_name": "SEO Content Creator",
+        "description": "Crear artículos optimizados SEO desde un tema",
+        "trigger": ["manual", "cron"],
+        "skills_required": ["web_search", "summarize", "rewrite", "doc_generate"],
+        "external_apis": [],
+        "config": {
+          "target_word_count": 1500,
+          "seo_keywords": [],
+          "tone": "professional",
+          "language": "es"
+        },
+        "phase": "F4",
+        "status": "new"
+      },
+      {
+        "id": "A-6",
+        "name": "lead_capture",
+        "display_name": "Lead Capture",
+        "description": "Formularios inteligentes → CRM → email automático",
+        "trigger": ["webhook"],
+        "skills_required": ["form_create", "email_send", "webhook", "extract_data"],
+        "external_apis": [],
+        "config": {
+          "form_fields": ["name", "email", "phone", "message"],
+          "auto_reply": true,
+          "auto_reply_template": "templates/lead_reply.html",
+          "notify_channels": ["email", "telegram"]
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-7",
+        "name": "competitor_watch",
+        "display_name": "Competitor Watch",
+        "description": "Monitorear precios y cambios de competidores",
+        "trigger": ["cron"],
+        "skills_required": ["scraping", "cron", "email_send", "report_generate", "summarize"],
+        "external_apis": [],
+        "config": {
+          "competitors": [],
+          "check_interval": "24h",
+          "alert_on_price_change": true,
+          "report_frequency": "weekly"
+        },
+        "phase": "F5",
+        "status": "new"
+      }
+    ],
+    "web_content": [
+      {
+        "id": "A-8",
+        "name": "wordpress_publisher",
+        "display_name": "WordPress Publisher",
+        "description": "Crear/editar posts en WordPress, subir media, gestionar categorías",
+        "trigger": ["manual", "cron"],
+        "skills_required": ["rewrite", "image_generate", "browser"],
+        "external_apis": ["wordpress_rest_api"],
+        "config": {
+          "wp_url": "",
+          "wp_user": "",
+          "wp_app_password": "",
+          "default_category": "Blog",
+          "default_status": "draft"
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-9",
+        "name": "blog_autopilot",
+        "display_name": "Blog Autopilot",
+        "description": "Generar artículos de blog semanales automáticos",
+        "trigger": ["cron"],
+        "skills_required": ["web_search", "rewrite", "image_generate", "summarize"],
+        "external_apis": ["wordpress_rest_api"],
+        "config": {
+          "frequency": "weekly",
+          "topics_source": "trending",
+          "auto_publish": false,
+          "word_count": 1200,
+          "include_image": true
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-10",
+        "name": "landing_page_express",
+        "display_name": "Landing Page Express",
+        "description": "Crear landing pages en minutos desde descripción",
+        "trigger": ["manual"],
+        "skills_required": ["web_create", "image_generate", "form_create", "rewrite"],
+        "external_apis": [],
+        "config": {
+          "templates_dir": "templates/landing/",
+          "publish_via": "cloudflare_tunnel",
+          "include_form": true,
+          "include_analytics": true
+        },
+        "phase": "F4",
+        "status": "partial"
+      },
+      {
+        "id": "A-11",
+        "name": "newsletter_auto",
+        "display_name": "Newsletter Auto",
+        "description": "Newsletter semanal con contenido curado automáticamente",
+        "trigger": ["cron"],
+        "skills_required": ["cron", "web_search", "summarize", "newsletter_send", "email_templates"],
+        "external_apis": [],
+        "config": {
+          "frequency": "weekly",
+          "day": "tuesday",
+          "time": "09:00",
+          "content_sources": ["web_search", "blog"],
+          "subscriber_list": "subscribers.csv"
+        },
+        "phase": "F5",
+        "status": "partial"
+      }
+    ],
+    "operations": [
+      {
+        "id": "A-12",
+        "name": "invoice_autopilot",
+        "display_name": "Invoice Autopilot",
+        "description": "Facturación automática recurrente",
+        "trigger": ["cron"],
+        "skills_required": ["cron", "invoice_generate", "email_send", "pdf_generate"],
+        "external_apis": [],
+        "config": {
+          "billing_cycle": "monthly",
+          "due_days": 30,
+          "currency": "USD",
+          "tax_rate": 0.19,
+          "auto_send": true,
+          "clients_file": "data/clients.json"
+        },
+        "phase": "F4",
+        "status": "new"
+      },
+      {
+        "id": "A-13",
+        "name": "appointment_bot",
+        "display_name": "Appointment Bot",
+        "description": "Gestión completa de citas: agendar, confirmar, recordar",
+        "trigger": ["webhook", "cron"],
+        "skills_required": ["calendar", "sms_send", "email_send", "reminders", "form_create"],
+        "external_apis": ["google_calendar_api"],
+        "config": {
+          "business_hours": "09:00-18:00",
+          "slot_duration": 30,
+          "reminder_before": "2h",
+          "reminder_channels": ["sms", "email"],
+          "timezone": "America/Bogota"
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-14",
+        "name": "review_responder",
+        "display_name": "Review Responder",
+        "description": "Detectar reseñas nuevas y sugerir/enviar respuestas",
+        "trigger": ["cron"],
+        "skills_required": ["scraping", "sentiment", "rewrite", "cron", "notifications"],
+        "external_apis": [],
+        "config": {
+          "platforms": ["google", "yelp", "tripadvisor"],
+          "check_interval": "6h",
+          "auto_respond": false,
+          "tone": "professional_friendly",
+          "notify_negative": true
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-15",
+        "name": "daily_report",
+        "display_name": "Daily Report",
+        "description": "Resumen diario del negocio por email / Telegram",
+        "trigger": ["cron"],
+        "skills_required": ["cron", "report_generate", "email_send", "metrics_dashboard", "summarize"],
+        "external_apis": [],
+        "config": {
+          "send_time": "08:00",
+          "channels": ["email", "telegram"],
+          "include_metrics": true,
+          "include_tasks": true,
+          "include_alerts": true
+        },
+        "phase": "F6",
+        "status": "new"
+      },
+      {
+        "id": "A-16",
+        "name": "customer_followup",
+        "display_name": "Customer Follow-up",
+        "description": "Seguimiento automático post-servicio / post-compra",
+        "trigger": ["cron", "webhook"],
+        "skills_required": ["cron", "email_send", "sentiment", "form_create"],
+        "external_apis": [],
+        "config": {
+          "followup_after": "48h",
+          "channels": ["email", "whatsapp"],
+          "include_survey": true,
+          "survey_questions": 3,
+          "escalate_negative": true
+        },
+        "phase": "F5",
+        "status": "new"
+      }
+    ],
+    "ecommerce": [
+      {
+        "id": "A-17",
+        "name": "product_catalog",
+        "display_name": "Product Catalog",
+        "description": "Catálogo digital desde Excel/PDF con QR",
+        "trigger": ["manual", "webhook"],
+        "skills_required": ["excel_read", "pdf_read", "web_create", "qrcode_generate", "image_generate"],
+        "external_apis": [],
+        "config": {
+          "source_type": "excel",
+          "source_file": "data/products.xlsx",
+          "generate_qr": true,
+          "publish_web": true
+        },
+        "phase": "F4",
+        "status": "new"
+      },
+      {
+        "id": "A-18",
+        "name": "order_manager",
+        "display_name": "Order Manager",
+        "description": "Tomar pedidos, confirmar, enviar a cocina/bodega",
+        "trigger": ["webhook"],
+        "skills_required": ["form_create", "email_send", "sms_send", "pdf_generate", "extract_data"],
+        "external_apis": [],
+        "config": {
+          "order_channels": ["whatsapp", "telegram", "web"],
+          "confirmation_channel": "email",
+          "kitchen_notify": "telegram",
+          "generate_receipt": true
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-19",
+        "name": "payment_links",
+        "display_name": "Payment Links",
+        "description": "Crear links de pago y cobrar",
+        "trigger": ["manual", "webhook"],
+        "skills_required": ["email_send", "sms_send", "webhook"],
+        "external_apis": ["stripe_api"],
+        "config": {
+          "stripe_key": "",
+          "currency": "USD",
+          "success_url": "",
+          "cancel_url": "",
+          "notify_on_payment": true
+        },
+        "phase": "F5",
+        "status": "new"
+      },
+      {
+        "id": "A-20",
+        "name": "inventory_alert",
+        "display_name": "Inventory Alert",
+        "description": "Alerta cuando un producto baja de stock mínimo",
+        "trigger": ["cron"],
+        "skills_required": ["excel_read", "cron", "email_send", "sms_send", "notifications"],
+        "external_apis": [],
+        "config": {
+          "source_file": "data/inventory.xlsx",
+          "check_interval": "12h",
+          "min_stock_threshold": 5,
+          "alert_channels": ["email", "telegram"],
+          "auto_reorder": false
+        },
+        "phase": "F5",
+        "status": "new"
+      }
+    ]
+  },
+  "summary": {
+    "total": 20,
+    "by_category": {
+      "marketing": 7,
+      "web_content": 4,
+      "operations": 5,
+      "ecommerce": 4
+    },
+    "by_status": {
+      "new": 18,
+      "partial": 2
+    },
+    "by_phase": {
+      "F4": 5,
+      "F5": 14,
+      "F6": 1
+    }
+  },
+  "operational": {
+    "cost_guard": {
+      "enabled": true,
+      "max_per_execution_usd": 0.50,
+      "max_per_day_usd": 5.00,
+      "max_per_month_usd": 50.00,
+      "alert_at_percent": 80,
+      "action_on_limit": "pause_and_notify"
+    },
+    "execution_log": {
+      "enabled": true,
+      "store": "sqlite",
+      "path": "data/automation_logs.db",
+      "retention_days": 90,
+      "log_fields": ["automation_id", "trigger", "started_at", "steps", "total_cost", "result", "error"]
+    },
+    "feature_flags": {
+      "enabled": true,
+      "default_all": false,
+      "per_client_config": "data/client_automations.json",
+      "note": "Cada cliente activa solo las automatizaciones que necesita"
+    },
+    "dry_run": {
+      "enabled_by_default": true,
+      "actions_in_dry_run": "log_only",
+      "send_emails": false,
+      "generate_files": true,
+      "publish_content": false,
+      "notify_admin": true,
+      "note": "Primera semana siempre en dry-run para validar"
+    },
+    "warmup_sequence": {
+      "enabled": true,
+      "week_1": ["A-15"],
+      "week_2": ["A-2", "A-12"],
+      "week_3": ["A-13", "A-14"],
+      "week_4_plus": "según necesidad del cliente"
+    }
+  }
+}
