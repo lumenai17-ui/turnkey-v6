@@ -363,49 +363,117 @@ Método de cobro preferido:
 ═════════════════════════════════════════════════════════════════
 
 SETUP COMPLETADO POR: ________________  FECHA: ________________
+AGENTE: ________________  TIPO: ________________
 
-NUESTRAS APIS CONFIGURADAS:
-  [ ] Ollama Cloud key asignada
-  [ ] Deepgram key configurada
-  [ ] Stable Diffusion key configurada
-  [ ] Kling/fal.ai key configurada
-  [ ] Google Maps key configurada
-  [ ] Brave Search key configurada
+──────────────────────────────────────────────────────────────
+A. NUESTRAS API KEYS (asignar al agente):
+──────────────────────────────────────────────────────────────
+  [ ] OLLAMA_CLOUD_KEY     → gemma3, llama4, qwen3-vl, nomic-embed
+      Skills: summarize, translate, extract_data, sentiment,
+              classify, rewrite, memory_search, image_receive, ocr
+      Validar: curl con prompt "Hello" → respuesta OK
 
-CANALES ACTIVADOS:
-  [ ] Telegram → Bot: @_________________
-  [ ] Email → ________________@{dominio}
-  [ ] WhatsApp → ________________
-  [ ] Discord → ________________
+  [ ] DEEPGRAM_API_KEY     → Nova-2 STT + Aura TTS
+      Skills: voice_receive, voice_send, audio_transcribe
+      Fallback: Whisper local (STT) / Piper local (TTS)
+      Validar: enviar audio de prueba → transcripción OK
 
-GOOGLE APIS CONECTADAS:
-  [ ] Calendar → OAuth completo
-  [ ] Sheets → OAuth completo
-  [ ] Maps → Key configurada
+  [ ] STABLE_DIFFUSION_KEY → SDXL
+      Skills: image_generate, image_edit
+      Fallback: No hay (avisa al usuario)
+      Validar: generar imagen "test" → imagen recibida
 
-INTEGRACIONES EXTERNAS:
-  [ ] WordPress → Conectado y probado
+  [ ] FAL_AI_KEY           → Kling 2.1
+      Skills: video_create
+      Fallback: FFmpeg slideshow
+      Validar: generar video de prueba → video recibido
+
+  [ ] GOOGLE_MAPS_KEY      → Maps + Directions
+      Skills: location, directions
+      Validar: buscar "restaurante cerca" → coordenadas OK
+
+  [ ] BRAVE_SEARCH_KEY     → Search (free tier 2K/mes)
+      Skills: web_search
+      Fallback: DuckDuckGo scraping
+      Validar: buscar "test" → resultados OK
+
+──────────────────────────────────────────────────────────────
+B. HERRAMIENTAS LOCALES (instalar en VPS, Fase 2):
+──────────────────────────────────────────────────────────────
+  APT:
+  [ ] wkhtmltopdf    → pdf_generate, invoice_generate, report_generate
+  [ ] poppler-utils  → pdf_read (pdftotext)
+  [ ] qpdf           → pdf_edit
+  [ ] pdftk-java     → pdf_edit
+  [ ] pandoc         → doc_generate
+  [ ] ffmpeg         → video_edit, video_process, video_create (fallback)
+  [ ] git            → git_commit, repo_read
+  [ ] qrencode       → qrcode_generate
+  [ ] zbar-tools     → qrcode_read
+
+  PIP:
+  [ ] openpyxl       → excel_generate, excel_read
+  [ ] python-pptx    → presentation_create
+
+  NPM:
+  [ ] puppeteer      → browser, scraping
+  [ ] cheerio        → scraping
+  [ ] handlebars     → email_templates
+  [ ] node-qrcode    → qrcode_generate (alternativo)
+
+──────────────────────────────────────────────────────────────
+C. EMAIL (Postfix+Dovecot):
+──────────────────────────────────────────────────────────────
+  [ ] Cuenta email creada: ________________@{dominio}
+  [ ] Postfix SMTP funcionando → email_send, newsletter_send
+  [ ] Dovecot IMAP funcionando → email_read
+  [ ] Prueba enviar/recibir email OK
+
+──────────────────────────────────────────────────────────────
+D. CANALES ACTIVADOS:
+──────────────────────────────────────────────────────────────
+  [ ] Telegram → Bot: @_________________ → telegram_send
+  [ ] Email → ________________@{dominio} → email_send/read
+  [ ] WhatsApp → ________________ → whatsapp_send
+  [ ] Discord → ________________ → discord_send
+  [ ] SMS → configurado → sms_send
+
+──────────────────────────────────────────────────────────────
+E. GOOGLE APIS (OAuth del cliente):
+──────────────────────────────────────────────────────────────
+  [ ] Calendar → OAuth completo → calendar
+  [ ] Sheets → OAuth completo → sheets
+  [ ] Maps → Key configurada → location, directions
+
+──────────────────────────────────────────────────────────────
+F. INTEGRACIONES DEL CLIENTE (solo si aplica):
+──────────────────────────────────────────────────────────────
+  [ ] WordPress → URL + creds validadas
   [ ] Meta Ads → Token validado
-  [ ] Stripe → Key validada
+  [ ] Stripe → Key validada (test charge)
   [ ] Google My Business → Conectado
 
-AUTOMATIZACIONES ACTIVADAS:
-  [ ] _________ [ ] _________ [ ] _________
-  [ ] _________ [ ] _________ [ ] _________
+──────────────────────────────────────────────────────────────
+G. AUTOMATIZACIONES:
+──────────────────────────────────────────────────────────────
+  Activadas: _____________________________________________
+  [ ] Todas probadas en DRY-RUN
+  [ ] Dependencias de APIs verificadas (ver requires en bundles)
 
-KNOWLEDGE BASE CARGADA:
+──────────────────────────────────────────────────────────────
+H. KNOWLEDGE BASE:
+──────────────────────────────────────────────────────────────
   [ ] Website scrapeado
   [ ] Documentos indexados
   [ ] FAQ configurado
 
-DRY-RUN COMPLETADO:
-  [ ] Todas las automatizaciones activas probadas en modo dry-run
-  [ ] Cliente notificado de resultados
-
-ENTREGADO AL CLIENTE:
+──────────────────────────────────────────────────────────────
+I. ENTREGA AL CLIENTE:
+──────────────────────────────────────────────────────────────
   [ ] Acceso a Telegram bot
-  [ ] Instrucciones de uso
-  [ ] Horario de warm-up explicado
+  [ ] Instrucciones de uso entregadas
+  [ ] Warm-up sequence explicada
+  [ ] Cliente confirmó recepción
 ```
 
 ---
