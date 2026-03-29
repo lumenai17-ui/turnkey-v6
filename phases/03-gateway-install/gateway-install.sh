@@ -385,6 +385,18 @@ configure_gateway() {
     local config_dir="${HOME}/.openclaw/config"
     local config_file="${config_dir}/gateway.json"
     
+    # Leer tier profile de Fase 1 para límites de concurrencia
+    local tier_file="${HOME}/.openclaw/workspace/turnkey/tier-profile.json"
+    local max_concurrent=2  # default conservador
+    local vps_tier="standard"
+    if [[ -f "$tier_file" ]] && command -v jq &>/dev/null; then
+        max_concurrent=$(jq -r '.max_concurrent // 2' "$tier_file" 2>/dev/null || echo "2")
+        vps_tier=$(jq -r '.vps_tier // "standard"' "$tier_file" 2>/dev/null || echo "standard")
+        log_ok "Tier profile leído: ${vps_tier} (maxConcurrent=${max_concurrent})"
+    else
+        log_warn "Tier profile no encontrado, usando defaults (maxConcurrent=${max_concurrent})"
+    fi
+    
     # Crear directorio si no existe
     if [[ ! -d "$config_dir" ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
@@ -410,7 +422,9 @@ configure_gateway() {
     "version": "${VERSION}",
     "host": "${GATEWAY_HOST}",
     "port": ${GATEWAY_PORT},
-    "logLevel": "info"
+    "logLevel": "info",
+    "maxConcurrent": ${max_concurrent},
+    "vpsTier": "${vps_tier}"
   },
   "api": {
     "ollama": {
@@ -503,8 +517,11 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/openclaw-gateway --config ${HOME}/.openclaw/config/gateway.json
-Restart=on-failure
-RestartSec=10
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=default.target

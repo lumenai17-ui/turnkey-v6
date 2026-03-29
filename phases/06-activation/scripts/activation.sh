@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-readonly VERSION="6.0.0"
+readonly VERSION="6.3.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly OPENCLAW_DIR="$HOME/.openclaw"
 readonly CONFIG_DIR="$OPENCLAW_DIR/config"
@@ -33,6 +33,15 @@ DRY_RUN=false
 TESTS_PASSED=0
 TESTS_FAILED=0
 TESTS_TOTAL=0
+ACTIVATION_SUCCESS=false
+
+# Cleanup partial report on failure
+cleanup_on_failure() {
+    if [[ "$ACTIVATION_SUCCESS" != "true" ]]; then
+        rm -f "$HOME/.openclaw/workspace/turnkey/activation-report.json" 2>/dev/null || true
+    fi
+}
+trap cleanup_on_failure EXIT ERR
 
 # ==============================================================================
 # LOGGING
@@ -274,6 +283,44 @@ else
     log_test_pass "No hay config para validar modelo"
 fi
 
+# Test 7: RAM baseline check (new in v6.3)
+echo -e "\n  ${BOLD}Test 7: Uso base de RAM${NC}"
+if command -v free &>/dev/null; then
+    ram_total=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "0")
+    ram_used=$(free -m 2>/dev/null | awk '/^Mem:/ {print $3}' || echo "0")
+    if [[ "$ram_total" -gt 0 ]]; then
+        ram_pct=$((ram_used * 100 / ram_total))
+        if [[ "$ram_pct" -lt 80 ]]; then
+            log_test_pass "RAM base: ${ram_used}MB/${ram_total}MB (${ram_pct}%)"
+        else
+            log_test_fail "RAM base alta: ${ram_used}MB/${ram_total}MB (${ram_pct}%) — debería ser <80%"
+        fi
+    else
+        log_test_fail "No se pudo leer RAM"
+    fi
+else
+    log_test_fail "Comando free no disponible"
+fi
+
+# Test 8: Automatizaciones cargadas (new in v6.3)
+echo -e "\n  ${BOLD}Test 8: Automatizaciones y skills${NC}"
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]] && command -v jq &>/dev/null; then
+    auto_count=$(jq -r '(.automations.enabled // []) | length' "$CONFIG_FILE" 2>/dev/null || echo "0")
+    skills_mode=$(jq -r '.skills.mode // "unknown"' "$CONFIG_FILE" 2>/dev/null || echo "unknown")
+    if [[ "$auto_count" -gt 0 ]]; then
+        log_test_pass "Automatizaciones seleccionadas: ${auto_count}"
+    else
+        log_test_fail "Sin automatizaciones configuradas"
+    fi
+    if [[ "$skills_mode" != "unknown" ]]; then
+        log_test_pass "Skills mode: ${skills_mode}"
+    else
+        log_test_pass "Skills mode: default"
+    fi
+else
+    log_test_pass "No hay config para validar automatizaciones"
+fi
+
 # ==============================================================================
 # STEP 4: GENERATE ACTIVATION REPORT
 # ==============================================================================
@@ -304,6 +351,52 @@ EOF
 log_info "Reporte guardado: activation-report.json"
 
 # ==============================================================================
+# STEP 5: CONFIGURATION SNAPSHOT (new in v6.3)
+# ==============================================================================
+
+log_step "PASO 5: Guardando snapshot de configuración"
+
+snapshot_dir="${report_dir}/snapshots/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$snapshot_dir" 2>/dev/null || true
+
+# Copiar config actual
+if [[ -d "$CONFIG_DIR" ]]; then
+    cp -r "$CONFIG_DIR/" "$snapshot_dir/config/" 2>/dev/null || true
+    log_info "Config copiada a snapshot"
+fi
+
+# Copiar tier profile
+if [[ -f "${report_dir}/tier-profile.json" ]]; then
+    cp "${report_dir}/tier-profile.json" "$snapshot_dir/" 2>/dev/null || true
+fi
+
+# Generar deploy summary
+tier_info="standard"
+concurrent_info=2
+if [[ -f "${report_dir}/tier-profile.json" ]] && command -v jq &>/dev/null; then
+    tier_info=$(jq -r '.vps_tier // "standard"' "${report_dir}/tier-profile.json" 2>/dev/null || echo "standard")
+    concurrent_info=$(jq -r '.max_concurrent // 2' "${report_dir}/tier-profile.json" 2>/dev/null || echo "2")
+fi
+
+cat > "${snapshot_dir}/deploy-summary.json" << EOFSNAP
+{
+  "agent": "${AGENT_NAME}",
+  "port": ${PORT},
+  "tier": "${tier_info}",
+  "max_concurrent": ${concurrent_info},
+  "deployed_at": "$(date -Iseconds)",
+  "status": "$([ $TESTS_FAILED -eq 0 ] && echo "active" || echo "partial")",
+  "tests": {
+    "total": ${TESTS_TOTAL},
+    "passed": ${TESTS_PASSED},
+    "failed": ${TESTS_FAILED}
+  },
+  "version": "${VERSION}"
+}
+EOFSNAP
+log_info "Snapshot guardado: $snapshot_dir"
+
+# ==============================================================================
 # SUMMARY
 # ==============================================================================
 
@@ -313,6 +406,8 @@ echo -e "${CYAN}║              RESULTADO DE ACTIVACIÓN                       
 echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
 echo -e "${CYAN}║${NC} Agente:       ${BOLD}${AGENT_NAME}${NC}"
 echo -e "${CYAN}║${NC} Puerto:       ${PORT}"
+echo -e "${CYAN}║${NC} Tier:         ${tier_info} (maxConcurrent=${concurrent_info})"
+echo -e "${CYAN}║${NC} Auto-restart: Restart=always, RestartSec=5"
 echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
 echo -e "${CYAN}║${NC} Tests totales: ${TESTS_TOTAL}"
 echo -e "${CYAN}║${NC} Pasaron:       ${GREEN}${TESTS_PASSED}${NC}"
@@ -332,4 +427,5 @@ echo ""
 if [[ $TESTS_FAILED -gt 0 ]]; then
     exit 1
 fi
+ACTIVATION_SUCCESS=true
 exit 0

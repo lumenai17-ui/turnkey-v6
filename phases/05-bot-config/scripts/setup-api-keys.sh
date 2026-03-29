@@ -154,7 +154,8 @@ prompt_api_key() {
     fi
     
     echo -e "Ingresa tu API key (formato esperado: ${YELLOW}$prefix...${NC})"
-    read -p "API Key (vacío para omitir): " key
+    read -sp "API Key (vacío para omitir): " key
+    echo ""  # newline after silent read
     
     if [[ -n "$key" ]]; then
         # Validar formato básico
@@ -482,7 +483,24 @@ $(if [[ -n "$JINA_KEY" ]]; then echo "jina_api_key: \"$JINA_KEY\""; else echo "#
 EOF
 
     chmod 600 "$API_KEYS_FILE"
-    log_success "Keys guardadas en $API_KEYS_FILE"
+
+    # Encrypt the keys file if openssl is available
+    if command -v openssl &>/dev/null; then
+        local encrypted_file="${API_KEYS_FILE}.enc"
+        if [[ -z "${MASTER_PASSPHRASE:-}" ]]; then
+            echo ""
+            read -sp "Passphrase maestra para cifrar las API keys: " MASTER_PASSPHRASE
+            echo ""
+        fi
+        openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"${MASTER_PASSPHRASE}" \
+            -in "$API_KEYS_FILE" -out "$encrypted_file" 2>/dev/null
+        chmod 600 "$encrypted_file"
+        # Remove plaintext version
+        rm -f "$API_KEYS_FILE"
+        log_success "Keys cifradas en $encrypted_file"
+    else
+        log_warn "openssl no disponible — keys guardadas SIN cifrar en $API_KEYS_FILE"
+    fi
     
     # Configuración de providers
     cat > "$API_CONFIG_FILE" << EOF

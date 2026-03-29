@@ -47,7 +47,7 @@ fi
 
 # Step 2: Backup current state
 echo -e "${CYAN}[2/4]${NC} Creando backup..."
-local backup_dir="$HOME/.openclaw/backups/$(date +%Y%m%d_%H%M%S)"
+backup_dir="$HOME/.openclaw/backups/$(date +%Y%m%d_%H%M%S)"
 if [[ "$DRY_RUN" = "true" ]]; then
     echo -e "  ${YELLOW}[DRY-RUN]${NC} Crearía backup en: $backup_dir"
 else

@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-readonly VERSION="6.0.0"
+readonly VERSION="6.3.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PHASES_DIR="${SCRIPT_DIR}/phases"
 readonly WORK_DIR="${HOME}/.openclaw/workspace/turnkey"
@@ -35,6 +35,7 @@ DRY_RUN=false
 FROM_PHASE=1
 FORCE=false
 VERBOSE=false
+VPS_TIER=""
 PHASE_STATUS=()
 
 # ==============================================================================
@@ -99,6 +100,17 @@ Fases:
     5  BOT CONFIG       Configurar canales (Telegram, Email, etc.)
     6  ACTIVATION       Activar servicios y smoke tests
 
+Production Layer (v6.3):
+    --tier TIER          Forzar tier (standard|premium). Auto-detecta si no se especifica.
+
+    El Production Layer incluye:
+    - Swap automático (4GB)
+    - Hardening (UFW, fail2ban, SSH)
+    - Límites de concurrencia por tier
+    - Auto-restart (systemd Restart=always)
+    - Health checks expandidos (8 tests)
+    - Snapshot de configuración final
+
 Ejemplos:
     ./turnkey.sh --config examples/restaurant.json --dry-run
     ./turnkey.sh --config mi-agente.json
@@ -120,6 +132,7 @@ parse_args() {
             -f|--from-phase) FROM_PHASE="$2"; shift 2 ;;
             --force)         FORCE=true; shift ;;
             -v|--verbose)    VERBOSE=true; shift ;;
+            -t|--tier)       VPS_TIER="$2"; shift 2 ;;
             -h|--help)       show_usage ;;
             *)               log ERROR "Opción desconocida: $1"; show_usage ;;
         esac
@@ -203,7 +216,19 @@ save_phase_status() {
     mkdir -p "$WORK_DIR" 2>/dev/null || true
 
     local status_file="${WORK_DIR}/phase-${phase_num}-status.json"
-    cat > "$status_file" << EOF
+
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --argjson phase "$phase_num" \
+            --arg status "$status" \
+            --arg message "$message" \
+            --arg timestamp "$(date -Iseconds)" \
+            --argjson dry_run "$DRY_RUN" \
+            '{phase: $phase, status: $status, message: $message, timestamp: $timestamp, dry_run: $dry_run}' \
+            > "$status_file"
+    else
+        # Fallback: basic heredoc (jq not available)
+        cat > "$status_file" << EOFSTATUS
 {
   "phase": $phase_num,
   "status": "$status",
@@ -211,7 +236,8 @@ save_phase_status() {
   "timestamp": "$(date -Iseconds)",
   "dry_run": $DRY_RUN
 }
-EOF
+EOFSTATUS
+    fi
 }
 
 check_phase_prereqs() {
@@ -325,11 +351,11 @@ run_phase_3() {
     fi
 
     local args=()
-    [[ -n "$api_key" ]] && args+=("--api-key" "$api_key")
     [[ -n "$port" ]] && args+=("--port" "$port")
     [[ "$DRY_RUN" = true ]] && args+=("--dry-run")
 
-    if bash "$script" "${args[@]}"; then
+    # Pass API key via env var (not CLI arg) to avoid ps/proc exposure
+    if OLLAMA_API_KEY="$api_key" bash "$script" "${args[@]}"; then
         save_phase_status 3 "success" "Gateway configurado en puerto ${port}"
         log SUCCESS "FASE 3 completada"
     else
@@ -451,11 +477,11 @@ run_phase_5() {
             tg_users=$(read_config '.channels.telegram.allowed_users | join(",")' "")
 
             local tg_args=("--agent-name" "$agent_name")
-            [[ -n "$tg_token" ]] && tg_args+=("--token" "$tg_token")
             [[ -n "$tg_users" ]] && tg_args+=("--allowed-users" "$tg_users")
             [[ "$DRY_RUN" = true ]] && tg_args+=("--dry-run")
 
-            bash "$tg_script" "${tg_args[@]}" || log WARN "Telegram setup falló (no bloqueante)"
+            # Pass token via env var (not CLI arg) to avoid ps/proc exposure
+            TG_BOT_TOKEN="$tg_token" bash "$tg_script" "${tg_args[@]}" || log WARN "Telegram setup falló (no bloqueante)"
         else
             log WARN "setup-telegram.sh no encontrado"
         fi
@@ -553,6 +579,22 @@ show_summary() {
     echo -e "${GREEN}║${NC}  Agente:       ${CYAN}${agent_name}${NC}"
     echo -e "${GREEN}║${NC}  Usuario:      ${CYAN}bee-${agent_name}${NC}"
     echo -e "${GREEN}║${NC}  Gateway:      ${CYAN}http://localhost:${port}${NC}"
+
+    # Show tier info if available
+    local tier_file="${WORK_DIR}/tier-profile.json"
+    if [[ -f "$tier_file" ]] && command -v jq &>/dev/null; then
+        local tier
+        tier=$(jq -r '.vps_tier // "unknown"' "$tier_file" 2>/dev/null || echo "unknown")
+        local ram_mb
+        ram_mb=$(jq -r '.ram_mb // 0' "$tier_file" 2>/dev/null || echo "0")
+        local max_conc
+        max_conc=$(jq -r '.max_concurrent // 0' "$tier_file" 2>/dev/null || echo "0")
+        echo -e "${GREEN}║${NC}  Tier:         ${CYAN}${tier} (${ram_mb}MB RAM, maxConcurrent=${max_conc})${NC}"
+        echo -e "${GREEN}║${NC}  Swap:         ${CYAN}4GB activo${NC}"
+        echo -e "${GREEN}║${NC}  Auto-restart: ${CYAN}Restart=always, RestartSec=5${NC}"
+        echo -e "${GREEN}║${NC}  Hardening:    ${CYAN}UFW + fail2ban + SSH${NC}"
+    fi
+
     echo -e "${GREEN}║${NC}  Config dir:   ${CYAN}~/.openclaw/config/${NC}"
     echo -e "${GREEN}║${NC}  Logs:         ${CYAN}~/.openclaw/logs/${NC}"
     echo -e "${GREEN}╠════════════════════════════════════════════════════════════════╣${NC}"

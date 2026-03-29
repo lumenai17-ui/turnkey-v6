@@ -1,8 +1,18 @@
-# Secrets
+# Secrets & Credentials
 secrets/
 *.key
 *.pem
 *.env
+*.enc
+api-keys.yaml
+api-keys.yaml.enc
+
+# Runtime status (may contain sensitive info)
+*-status.json
+turnkey-config.json
+turnkey-env.json
+activation-report.json
+credentials.enc
 
 # Logs
 logs/

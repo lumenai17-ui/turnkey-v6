@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-readonly VERSION="6.2.0"
+readonly VERSION="6.3.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
 readonly WORK_DIR="${HOME}/.openclaw/workspace/turnkey"
@@ -31,6 +31,17 @@ INTERACTIVE=false
 FORCE=false
 WARNINGS=0
 ERRORS=0
+PREFLIGHT_SUCCESS=false
+
+# Cleanup partial output on failure
+cleanup_on_failure() {
+    if [[ "$PREFLIGHT_SUCCESS" != "true" ]]; then
+        rm -f "${WORK_DIR:-/tmp}/turnkey-env.json" 2>/dev/null || true
+        rm -f "${WORK_DIR:-/tmp}/turnkey-config.json" 2>/dev/null || true
+        rm -f "${WORK_DIR:-/tmp}/turnkey-status.json" 2>/dev/null || true
+    fi
+}
+trap cleanup_on_failure EXIT ERR
 
 # ============================
 # Config values — IDENTIDAD
@@ -506,6 +517,258 @@ validate_resources() {
     fi
 }
 
+# ==============================================================================
+# PRODUCTION LAYER: SYSTEM UPDATE
+# ==============================================================================
+
+system_update() {
+    log_step "ACTUALIZANDO SISTEMA"
+
+    if [[ "$DRY_RUN" = true || "$FORCE" = true ]]; then
+        log_warn "[DRY-RUN/FORCE] Se ejecutaría: apt update && apt upgrade -y"
+        return 0
+    fi
+
+    if ! command -v apt &>/dev/null; then
+        log_warn "apt no disponible (OS no basado en Debian/Ubuntu)"
+        return 0
+    fi
+
+    log_info "Ejecutando apt update..."
+    if sudo apt update -y &>/dev/null; then
+        log_info "apt update completado"
+    else
+        log_warn "apt update falló (no bloqueante)"
+    fi
+
+    log_info "Ejecutando apt upgrade..."
+    if sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y &>/dev/null; then
+        log_info "apt upgrade completado"
+    else
+        log_warn "apt upgrade falló (no bloqueante)"
+    fi
+}
+
+# ==============================================================================
+# PRODUCTION LAYER: TIER DETECTION
+# ==============================================================================
+
+detect_tier() {
+    log_step "DETECTANDO TIER DEL VPS"
+
+    local ram_mb=0
+    if command -v free &>/dev/null; then
+        ram_mb=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "0")
+    fi
+
+    # Determinar tier basado en RAM
+    if [[ "$ram_mb" -le 4096 ]]; then
+        VPS_TIER="standard"
+        SWAP_SIZE="4G"
+        SWAP_SIZE_MB=4096
+        MAX_CONCURRENT=2
+    else
+        VPS_TIER="premium"
+        SWAP_SIZE="4G"
+        SWAP_SIZE_MB=4096
+        MAX_CONCURRENT=3
+    fi
+
+    log_info "RAM detectada: ${ram_mb}MB"
+    log_info "Tier asignado: ${VPS_TIER}"
+    log_info "Swap a configurar: ${SWAP_SIZE}"
+    log_info "Concurrencia máxima: ${MAX_CONCURRENT}"
+
+    # Guardar tier profile para fases posteriores
+    mkdir -p "$WORK_DIR" 2>/dev/null || true
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --arg tier "$VPS_TIER" \
+            --argjson ram "$ram_mb" \
+            --arg swap "$SWAP_SIZE" \
+            --argjson concurrent "$MAX_CONCURRENT" \
+            --arg ts "$(date -Iseconds)" \
+            '{
+                vps_tier: $tier,
+                ram_mb: $ram,
+                swap_size: $swap,
+                max_concurrent: $concurrent,
+                detected_at: $ts
+            }' > "${WORK_DIR}/tier-profile.json"
+        log_info "Generado: tier-profile.json"
+    else
+        cat > "${WORK_DIR}/tier-profile.json" <<EOFTIER
+{
+  "vps_tier": "${VPS_TIER}",
+  "ram_mb": ${ram_mb},
+  "swap_size": "${SWAP_SIZE}",
+  "max_concurrent": ${MAX_CONCURRENT},
+  "detected_at": "$(date -Iseconds)"
+}
+EOFTIER
+        log_info "Generado: tier-profile.json (sin jq)"
+    fi
+}
+
+# ==============================================================================
+# PRODUCTION LAYER: SWAP SETUP
+# ==============================================================================
+
+setup_swap() {
+    log_step "CONFIGURANDO SWAP (${SWAP_SIZE})"
+
+    # Verificar si ya hay swap activo
+    if swapon --show 2>/dev/null | grep -q '/swapfile'; then
+        local current_swap
+        current_swap=$(swapon --show 2>/dev/null | awk '/\/swapfile/ {print $3}')
+        log_info "Swap ya activo: /swapfile (${current_swap})"
+        return 0
+    fi
+
+    if [[ "$DRY_RUN" = true || "$FORCE" = true ]]; then
+        log_warn "[DRY-RUN/FORCE] Se crearía swap de ${SWAP_SIZE}"
+        return 0
+    fi
+
+    # Crear swapfile
+    log_info "Creando swapfile de ${SWAP_SIZE}..."
+    if sudo fallocate -l ${SWAP_SIZE} /swapfile 2>/dev/null || \
+       sudo dd if=/dev/zero of=/swapfile bs=1M count=${SWAP_SIZE_MB} 2>/dev/null; then
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile &>/dev/null
+        sudo swapon /swapfile
+        log_info "Swap activado: ${SWAP_SIZE}"
+    else
+        log_warn "No se pudo crear swapfile (no bloqueante)"
+        return 0
+    fi
+
+    # Persistencia en fstab (idempotente)
+    if ! grep -q '/swapfile' /etc/fstab 2>/dev/null; then
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+        log_info "Swap persistido en /etc/fstab"
+    else
+        log_info "Swap ya está en /etc/fstab"
+    fi
+
+    # Optimizar swappiness
+    sudo sysctl vm.swappiness=10 &>/dev/null || true
+    if ! grep -q 'vm.swappiness' /etc/sysctl.conf 2>/dev/null; then
+        echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf >/dev/null
+        log_info "swappiness=10 configurado (permanente)"
+    else
+        log_info "swappiness ya configurado"
+    fi
+}
+
+# ==============================================================================
+# PRODUCTION LAYER: HARDENING
+# ==============================================================================
+
+setup_hardening() {
+    log_step "APLICANDO HARDENING DE SEGURIDAD"
+
+    if [[ "$DRY_RUN" = true || "$FORCE" = true ]]; then
+        log_warn "[DRY-RUN/FORCE] Se aplicaría: UFW, fail2ban, SSH hardening"
+        return 0
+    fi
+
+    # --- UFW Firewall ---
+    if command -v ufw &>/dev/null; then
+        log_info "UFW ya instalado"
+    else
+        log_info "Instalando UFW..."
+        sudo apt install -y ufw &>/dev/null || { log_warn "No se pudo instalar UFW"; }
+    fi
+
+    if command -v ufw &>/dev/null; then
+        # Reglas básicas
+        sudo ufw default deny incoming &>/dev/null || true
+        sudo ufw default allow outgoing &>/dev/null || true
+        sudo ufw allow ssh &>/dev/null || true
+        sudo ufw allow ${AGENT_PORT}/tcp &>/dev/null || true
+
+        # Activar si no está activo
+        if ! sudo ufw status 2>/dev/null | grep -q "active"; then
+            echo "y" | sudo ufw enable &>/dev/null || true
+            log_info "UFW activado (SSH + puerto ${AGENT_PORT})"
+        else
+            log_info "UFW ya activo"
+        fi
+    fi
+
+    # --- fail2ban ---
+    if command -v fail2ban-client &>/dev/null; then
+        log_info "fail2ban ya instalado"
+    else
+        log_info "Instalando fail2ban..."
+        sudo apt install -y fail2ban &>/dev/null || { log_warn "No se pudo instalar fail2ban"; }
+    fi
+
+    if command -v fail2ban-client &>/dev/null; then
+        # Crear jail local si no existe
+        local jail_file="/etc/fail2ban/jail.local"
+        if [[ ! -f "$jail_file" ]]; then
+            sudo tee "$jail_file" >/dev/null <<'EOFJ'
+[DEFAULT]
+bantime  = 3600
+findtime = 600
+maxretry = 5
+backend  = systemd
+
+[sshd]
+enabled = true
+port    = ssh
+filter  = sshd
+maxretry = 3
+EOFJ
+            log_info "fail2ban jail configurado (SSH: 3 intentos, ban 1h)"
+        else
+            log_info "fail2ban jail.local ya existe"
+        fi
+
+        sudo systemctl enable fail2ban &>/dev/null || true
+        sudo systemctl restart fail2ban &>/dev/null || true
+        log_info "fail2ban activo"
+    fi
+
+    # --- SSH Hardening ---
+    local sshd_config="/etc/ssh/sshd_config"
+    if [[ -f "$sshd_config" ]]; then
+        local ssh_changed=false
+
+        # Deshabilitar root login si está permitido
+        if grep -qE '^PermitRootLogin\s+yes' "$sshd_config" 2>/dev/null; then
+            sudo sed -i 's/^PermitRootLogin\s\+yes/PermitRootLogin no/' "$sshd_config"
+            ssh_changed=true
+            log_info "SSH: PermitRootLogin → no"
+        fi
+
+        # Deshabilitar password auth si hay claves SSH
+        if [[ -f "$HOME/.ssh/authorized_keys" ]] && [[ -s "$HOME/.ssh/authorized_keys" ]]; then
+            if grep -qE '^PasswordAuthentication\s+yes' "$sshd_config" 2>/dev/null; then
+                sudo sed -i 's/^PasswordAuthentication\s\+yes/PasswordAuthentication no/' "$sshd_config"
+                ssh_changed=true
+                log_info "SSH: PasswordAuthentication → no (claves SSH detectadas)"
+            fi
+        else
+            log_warn "SSH: Sin claves SSH, se mantiene PasswordAuthentication"
+        fi
+
+        # Reiniciar SSH si hubo cambios
+        if [[ "$ssh_changed" = true ]]; then
+            sudo systemctl restart sshd &>/dev/null || sudo systemctl restart ssh &>/dev/null || true
+            log_info "SSH reiniciado con configuración segura"
+        else
+            log_info "SSH ya tiene configuración segura"
+        fi
+    else
+        log_warn "sshd_config no encontrado"
+    fi
+
+    log_info "Hardening completado"
+}
+
 validate_config() {
     log_step "VALIDANDO CONFIGURACIÓN v2.0"
 
@@ -581,90 +844,103 @@ generate_output() {
     local timestamp
     timestamp=$(date -Iseconds)
 
-    # --- turnkey-env.json ---
-    cat > "${WORK_DIR}/turnkey-env.json" << EOF
-{
-  "generated_at": "${timestamp}",
-  "version": "${VERSION}",
-  "model_version": "2.0.0",
-  "environment": {
-    "type": "${DEPLOY_TYPE:-auto-detect}",
-    "hostname": "$(hostname 2>/dev/null || echo 'unknown')",
-    "os": "$(uname -s 2>/dev/null || echo 'unknown')",
-    "kernel": "$(uname -r 2>/dev/null || echo 'unknown')"
-  },
-  "resources": {
-    "ram_gb": $(free -g 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 0),
-    "cpu_cores": $(nproc 2>/dev/null || echo 1),
-    "disk_available_gb": $(df -BG / 2>/dev/null | awk 'NR==2 {gsub(/G/,"",$4); print $4}' || echo 0)
-  }
-}
-EOF
+    # --- turnkey-env.json (safe: no user-controlled input) ---
+    local ram_gb cpu_cores disk_gb
+    ram_gb=$(free -g 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 0)
+    cpu_cores=$(nproc 2>/dev/null || echo 1)
+    disk_gb=$(df -BG / 2>/dev/null | awk 'NR==2 {gsub(/G/,"",$4); print $4}' || echo 0)
+
+    jq -n \
+        --arg ts "$timestamp" \
+        --arg ver "$VERSION" \
+        --arg dtype "${DEPLOY_TYPE:-auto-detect}" \
+        --arg host "$(hostname 2>/dev/null || echo 'unknown')" \
+        --arg os "$(uname -s 2>/dev/null || echo 'unknown')" \
+        --arg kernel "$(uname -r 2>/dev/null || echo 'unknown')" \
+        --argjson ram "${ram_gb:-0}" \
+        --argjson cpu "${cpu_cores:-1}" \
+        --argjson disk "${disk_gb:-0}" \
+        '{
+            generated_at: $ts, version: $ver, model_version: "2.0.0",
+            environment: {type: $dtype, hostname: $host, os: $os, kernel: $kernel},
+            resources: {ram_gb: $ram, cpu_cores: $cpu, disk_available_gb: $disk}
+        }' > "${WORK_DIR}/turnkey-env.json"
     log_info "Generado: turnkey-env.json"
 
-    # --- turnkey-config.json (v2.0 complete) ---
+    # --- turnkey-config.json (v2.0 complete — sanitized) ---
     if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
         cp "$CONFIG_FILE" "${WORK_DIR}/turnkey-config.json"
     else
         local automations_json="[]"
         if [[ -n "$AUTOMATIONS_ENABLED" ]]; then
-            automations_json=$(echo "$AUTOMATIONS_ENABLED" | tr ',' '\n' | sed 's/^/"/;s/$/"/' | paste -sd, | sed 's/^/[/;s/$/]/')
+            automations_json=$(echo "$AUTOMATIONS_ENABLED" | tr ',' '\n' | jq -R . | jq -s .)
         fi
 
-        cat > "${WORK_DIR}/turnkey-config.json" << EOF
-{
-  "version": "2.0.0",
-  "generated_at": "${timestamp}",
-  "deployment": {"type": "${DEPLOY_TYPE:-auto-detect}"},
-  "agent": {
-    "name": "${AGENT_NAME}",
-    "business_name": "${BUSINESS_NAME}",
-    "business_type": "${BUSINESS_TYPE}",
-    "role": "${AGENT_ROLE:-Asistente virtual de ${BUSINESS_NAME}}",
-    "emoji": "${AGENT_EMOJI}",
-    "language": "${AGENT_LANG}",
-    "timezone": "${TIMEZONE}",
-    "port": ${AGENT_PORT}
-  },
-  "branding": {
-    "primary_color": "${BRAND_PRIMARY_COLOR}",
-    "secondary_color": "${BRAND_SECONDARY_COLOR}",
-    "accent_color": "${BRAND_ACCENT_COLOR}",
-    "tone": "${BRAND_TONE}"
-  },
-  "contact": {
-    "owner_name": "${OWNER_NAME}",
-    "owner_email": "${OWNER_EMAIL}",
-    "owner_phone": "${OWNER_PHONE}",
-    "website": "${BUSINESS_WEBSITE}"
-  },
-  "channels": {
-    "telegram": {"enabled": ${TG_ENABLED}, "create_new_bot": ${TG_CREATE_NEW}},
-    "email": {"enabled": ${EMAIL_ENABLED}, "use_our_domain": ${EMAIL_USE_OURS}},
-    "whatsapp": {"enabled": ${WA_ENABLED}},
-    "discord": {"enabled": ${DISCORD_ENABLED}}
-  },
-  "google_apis": {
-    "calendar": {"enabled": ${GCAL_ENABLED}, "email": "${GCAL_EMAIL}"},
-    "sheets": {"enabled": ${GSHEETS_ENABLED}},
-    "maps": {"enabled": ${GMAPS_ENABLED}}
-  },
-  "integrations": {
-    "wordpress": {"enabled": ${WP_ENABLED}},
-    "meta_ads": {"enabled": ${META_ADS_ENABLED}},
-    "stripe": {"enabled": ${STRIPE_ENABLED}},
-    "google_my_business": {"enabled": ${GMB_ENABLED}}
-  },
-  "models": {
-    "primary": "${MODEL_PRIMARY}",
-    "fallback": "${MODEL_FALLBACK}",
-    "vision": "${MODEL_VISION}",
-    "embeddings": "${MODEL_EMBEDDINGS}"
-  },
-  "skills": {"mode": "all_builtin", "total": 58},
-  "automations": {"enabled": ${automations_json}}
-}
-EOF
+        jq -n \
+            --arg ts "$timestamp" \
+            --arg dtype "${DEPLOY_TYPE:-auto-detect}" \
+            --arg name "$AGENT_NAME" \
+            --arg bname "$BUSINESS_NAME" \
+            --arg btype "$BUSINESS_TYPE" \
+            --arg role "${AGENT_ROLE:-Asistente virtual de ${BUSINESS_NAME}}" \
+            --arg emoji "$AGENT_EMOJI" \
+            --arg lang "$AGENT_LANG" \
+            --arg tz "$TIMEZONE" \
+            --argjson port "${AGENT_PORT:-18789}" \
+            --arg pc "$BRAND_PRIMARY_COLOR" \
+            --arg sc "$BRAND_SECONDARY_COLOR" \
+            --arg ac "$BRAND_ACCENT_COLOR" \
+            --arg tone "$BRAND_TONE" \
+            --arg oname "$OWNER_NAME" \
+            --arg oemail "$OWNER_EMAIL" \
+            --arg ophone "$OWNER_PHONE" \
+            --arg web "$BUSINESS_WEBSITE" \
+            --argjson tg_en "${TG_ENABLED:-false}" \
+            --argjson tg_new "${TG_CREATE_NEW:-true}" \
+            --argjson em_en "${EMAIL_ENABLED:-true}" \
+            --argjson em_ours "${EMAIL_USE_OURS:-true}" \
+            --argjson wa_en "${WA_ENABLED:-false}" \
+            --argjson dc_en "${DISCORD_ENABLED:-false}" \
+            --argjson gcal_en "${GCAL_ENABLED:-false}" \
+            --arg gcal_email "$GCAL_EMAIL" \
+            --argjson gsh_en "${GSHEETS_ENABLED:-false}" \
+            --argjson gmap_en "${GMAPS_ENABLED:-true}" \
+            --argjson wp_en "${WP_ENABLED:-false}" \
+            --argjson meta_en "${META_ADS_ENABLED:-false}" \
+            --argjson stripe_en "${STRIPE_ENABLED:-false}" \
+            --argjson gmb_en "${GMB_ENABLED:-false}" \
+            --arg mpri "$MODEL_PRIMARY" \
+            --arg mfb "$MODEL_FALLBACK" \
+            --arg mvis "$MODEL_VISION" \
+            --arg memb "$MODEL_EMBEDDINGS" \
+            --argjson autos "$automations_json" \
+            '{
+                version: "2.0.0", generated_at: $ts,
+                deployment: {type: $dtype},
+                agent: {name: $name, business_name: $bname, business_type: $btype, role: $role, emoji: $emoji, language: $lang, timezone: $tz, port: $port},
+                branding: {primary_color: $pc, secondary_color: $sc, accent_color: $ac, tone: $tone},
+                contact: {owner_name: $oname, owner_email: $oemail, owner_phone: $ophone, website: $web},
+                channels: {
+                    telegram: {enabled: $tg_en, create_new_bot: $tg_new},
+                    email: {enabled: $em_en, use_our_domain: $em_ours},
+                    whatsapp: {enabled: $wa_en},
+                    discord: {enabled: $dc_en}
+                },
+                google_apis: {
+                    calendar: {enabled: $gcal_en, email: $gcal_email},
+                    sheets: {enabled: $gsh_en},
+                    maps: {enabled: $gmap_en}
+                },
+                integrations: {
+                    wordpress: {enabled: $wp_en},
+                    meta_ads: {enabled: $meta_en},
+                    stripe: {enabled: $stripe_en},
+                    google_my_business: {enabled: $gmb_en}
+                },
+                models: {primary: $mpri, fallback: $mfb, vision: $mvis, embeddings: $memb},
+                skills: {mode: "all_builtin", total: 58},
+                automations: {enabled: $autos}
+            }' > "${WORK_DIR}/turnkey-config.json"
     fi
     log_info "Generado: turnkey-config.json (v2.0)"
 
@@ -679,24 +955,26 @@ EOF
         final_status="passed_with_warnings"
     fi
 
-    cat > "${WORK_DIR}/turnkey-status.json" << EOF
-{
-  "phase": 1,
-  "status": "${final_status}",
-  "timestamp": "${timestamp}",
-  "model_version": "2.0.0",
-  "warnings": ${WARNINGS},
-  "errors": ${ERRORS},
-  "can_proceed": ${can_proceed},
-  "agent": {
-    "name": "${AGENT_NAME}",
-    "business_type": "${BUSINESS_TYPE}",
-    "port": ${AGENT_PORT},
-    "skills": 58,
-    "automations_selected": $(echo "$AUTOMATIONS_ENABLED" | tr ',' '\n' | wc -l)
-  }
-}
-EOF
+    local auto_count=0
+    if [[ -n "$AUTOMATIONS_ENABLED" ]]; then
+        auto_count=$(echo "$AUTOMATIONS_ENABLED" | tr ',' '\n' | wc -l)
+    fi
+
+    jq -n \
+        --arg status "$final_status" \
+        --arg ts "$timestamp" \
+        --argjson warnings "$WARNINGS" \
+        --argjson errors "$ERRORS" \
+        --argjson can "$can_proceed" \
+        --arg name "$AGENT_NAME" \
+        --arg btype "$BUSINESS_TYPE" \
+        --argjson port "${AGENT_PORT:-18789}" \
+        --argjson autocount "$auto_count" \
+        '{
+            phase: 1, status: $status, timestamp: $ts, model_version: "2.0.0",
+            warnings: $warnings, errors: $errors, can_proceed: $can,
+            agent: {name: $name, business_type: $btype, port: $port, skills: 58, automations_selected: $autocount}
+        }' > "${WORK_DIR}/turnkey-status.json"
     log_info "Generado: turnkey-status.json"
 }
 
@@ -762,6 +1040,13 @@ main() {
     check_dependencies
     validate_environment
     validate_resources
+
+    # === PRODUCTION LAYER (nuevo en v6.3) ===
+    system_update
+    detect_tier
+    setup_swap
+    setup_hardening
+
     validate_config
 
     generate_output
@@ -771,6 +1056,7 @@ main() {
         exit 1
     fi
 
+    PREFLIGHT_SUCCESS=true
     exit 0
 }
 

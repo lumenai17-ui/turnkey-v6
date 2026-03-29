@@ -426,33 +426,48 @@ generate_status_json() {
     create_status_dir
     local status_file="$(get_script_dir)/${STATUS_DIR}/${STATUS_FILE}"
     
-    cat > "$status_file" << EOF
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --arg phase "${PHASE}" \
+            --arg script "${SCRIPT_NAME}" \
+            --arg version "${SCRIPT_VERSION}" \
+            --arg timestamp "${timestamp}" \
+            --arg agent_name "${agent_name}" \
+            --arg username "${username}" \
+            --arg prefix "${USER_PREFIX}" \
+            --arg status "${status}" \
+            --arg message "${message}" \
+            --argjson dry_run "${dry_run}" \
+            '{
+                phase: $phase,
+                script: $script,
+                version: $version,
+                timestamp: $timestamp,
+                agent: {name: $agent_name, username: $username, prefix: $prefix},
+                status: $status,
+                message: $message,
+                dry_run: $dry_run,
+                directories: {
+                    config: ("/home/" + $username + "/.openclaw/config"),
+                    workspace: ("/home/" + $username + "/.openclaw/workspace"),
+                    logs: ("/home/" + $username + "/.openclaw/logs"),
+                    data: ("/home/" + $username + "/.openclaw/data")
+                },
+                permissions: {config: "700", standard: "755"},
+                next_phase: "03-install-deps"
+            }' > "$status_file"
+    else
+        # Fallback without jq
+        cat > "$status_file" << EOFSTATUS
 {
     "phase": "${PHASE}",
-    "script": "${SCRIPT_NAME}",
-    "version": "${SCRIPT_VERSION}",
-    "timestamp": "${timestamp}",
-    "agent": {
-        "name": "${agent_name}",
-        "username": "${username}",
-        "prefix": "${USER_PREFIX}"
-    },
     "status": "${status}",
     "message": "${message}",
-    "dry_run": ${dry_run},
-    "directories": {
-        "config": "/home/${username}/.openclaw/config",
-        "workspace": "/home/${username}/.openclaw/workspace",
-        "logs": "/home/${username}/.openclaw/logs",
-        "data": "/home/${username}/.openclaw/data"
-    },
-    "permissions": {
-        "config": "700",
-        "standard": "755"
-    },
-    "next_phase": "03-install-deps"
+    "timestamp": "${timestamp}",
+    "dry_run": ${dry_run}
 }
-EOF
+EOFSTATUS
+    fi
     
     log_info "Estado guardado en: $status_file"
 }
@@ -469,23 +484,32 @@ save_credentials() {
     create_secrets_dir
     
     local secrets_dir="$(get_script_dir)/${SECRETS_DIR}"
-    local cred_file="${secrets_dir}/${agent_name}.json"
+    local cred_file="${secrets_dir}/${agent_name}.json.enc"
     
-    # Guardar en formato temporal (será encriptado en FASE 7)
-    cat > "$cred_file" << EOF
-{
-    "agent_name": "${agent_name}",
-    "username": "${username}",
-    "password": "${password}",
-    "created_at": "$(date -Iseconds)",
-    "for_phase": "07-deploy"
-}
-EOF
+    if command -v jq &>/dev/null; then
+        local json
+        json=$(jq -n \
+            --arg agent_name "${agent_name}" \
+            --arg username "${username}" \
+            --arg password "${password}" \
+            --arg created_at "$(date -Iseconds)" \
+            '{agent_name: $agent_name, username: $username, password: $password, created_at: $created_at, for_phase: "07-deploy"}')
+    else
+        local json="{\"agent_name\": \"${agent_name}\", \"username\": \"${username}\", \"password\": \"${password}\"}"
+    fi
     
-    # Proteger archivo
-    chmod 600 "$cred_file"
-    
-    log_debug "Credenciales guardadas en: $cred_file"
+    # Encrypt credentials with openssl (password-based, PBKDF2)
+    if command -v openssl &>/dev/null; then
+        echo "$json" | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"${password}" -out "$cred_file" 2>/dev/null
+        chmod 600 "$cred_file"
+        log_debug "Credenciales cifradas guardadas en: $cred_file"
+    else
+        # Fallback: plaintext with restricted permissions + warning
+        local plain_file="${secrets_dir}/${agent_name}.json"
+        echo "$json" > "$plain_file"
+        chmod 600 "$plain_file"
+        log_warn "openssl no disponible — credenciales guardadas SIN cifrar en: $plain_file"
+    fi
 }
 
 # ==============================================================================
