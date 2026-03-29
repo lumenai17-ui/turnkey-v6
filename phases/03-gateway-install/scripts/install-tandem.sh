@@ -108,26 +108,15 @@ else
         log_warn "[DRY-RUN] Se clonaría Tandem Browser"
     else
         log_info "Clonando Tandem Browser..."
-        # TODO: Reemplazar con URL real del repo cuando esté disponible
-        # git clone https://github.com/openclaw/tandem-browser.git "$TANDEM_BROWSER_DIR"
-        # cd "$TANDEM_BROWSER_DIR"
-        # npm install --quiet
-        
-        # Por ahora, crear estructura placeholder
-        mkdir -p "$TANDEM_BROWSER_DIR"
-        cat > "${TANDEM_BROWSER_DIR}/package.json" <<'EOFPKG'
-{
-  "name": "tandem-browser",
-  "version": "0.1.0",
-  "description": "Tandem Browser for OpenClaw agents",
-  "main": "index.js",
-  "scripts": {
-    "start": "electron .",
-    "verify": "echo 'Tandem Browser OK'"
-  }
-}
-EOFPKG
-        log_info "Estructura de Tandem Browser creada"
+        git clone https://github.com/hydro13/tandem-browser.git "$TANDEM_BROWSER_DIR" 2>/dev/null
+        if [[ -d "$TANDEM_BROWSER_DIR" ]]; then
+            cd "$TANDEM_BROWSER_DIR"
+            npm install --quiet 2>/dev/null || log_warn "npm install parcial"
+            npm run verify 2>/dev/null || true
+            log_info "Tandem Browser clonado e instalado"
+        else
+            log_warn "No se pudo clonar Tandem Browser"
+        fi
     fi
 fi
 
@@ -171,7 +160,7 @@ After=network.target openclaw-gateway.service
 [Service]
 Type=simple
 WorkingDirectory=${TANDEM_BROWSER_DIR}
-ExecStart=/usr/bin/xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm start
+ExecStart=/usr/bin/xvfb-run --server-num=99 --server-args="-screen 0 1920x1080x24" npm start
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=60
@@ -180,6 +169,7 @@ Environment=NODE_ENV=production
 Environment=TANDEM_PORT=${TANDEM_PORT}
 Environment=TANDEM_TOKEN_FILE=${TANDEM_TOKEN_FILE}
 Environment=DISPLAY=:99
+Environment=TANDEM_HEADLESS=true
 
 [Install]
 WantedBy=default.target

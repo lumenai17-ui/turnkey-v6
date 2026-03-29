@@ -353,6 +353,40 @@ else
     log_test_fail "GWS CLI no instalado"
 fi
 
+# Test 11: VNC Server (x11vnc) (new in v6.3)
+echo -e "\n  ${BOLD}Test 11: VNC Server (x11vnc)${NC}"
+if [[ "$DRY_RUN" = "true" ]]; then
+    log_test_pass "[DRY-RUN] VNC check simulado"
+else
+    if command -v x11vnc &>/dev/null; then
+        log_test_pass "x11vnc instalado"
+        if ss -tuln 2>/dev/null | grep -q ":5900 "; then
+            log_test_pass "x11vnc escuchando en puerto 5900"
+        else
+            log_test_fail "x11vnc no escucha en puerto 5900"
+        fi
+    else
+        log_test_fail "x11vnc no instalado"
+    fi
+fi
+
+# Test 12: noVNC Web Client (new in v6.3)
+echo -e "\n  ${BOLD}Test 12: noVNC Web Client${NC}"
+if [[ "$DRY_RUN" = "true" ]]; then
+    log_test_pass "[DRY-RUN] noVNC check simulado"
+else
+    if [[ -d "$HOME/.novnc" ]]; then
+        log_test_pass "noVNC instalado"
+        if ss -tuln 2>/dev/null | grep -q ":6080 "; then
+            log_test_pass "noVNC escuchando en puerto 6080"
+        else
+            log_test_fail "noVNC no escucha en puerto 6080"
+        fi
+    else
+        log_test_fail "noVNC no instalado"
+    fi
+fi
+
 # ==============================================================================
 # STEP 4: GENERATE ACTIVATION REPORT
 # ==============================================================================
@@ -440,6 +474,9 @@ echo -e "${CYAN}║${NC} Agente:       ${BOLD}${AGENT_NAME}${NC}"
 echo -e "${CYAN}║${NC} Puerto:       ${PORT}"
 echo -e "${CYAN}║${NC} Tier:         ${tier_info} (maxConcurrent=${concurrent_info})"
 echo -e "${CYAN}║${NC} Auto-restart: Restart=always, RestartSec=5"
+echo -e "${CYAN}║${NC} Tandem:       http://127.0.0.1:8765"
+echo -e "${CYAN}║${NC} VNC:          vnc://IP:5900 | http://IP:6080/vnc.html"
+echo -e "${CYAN}║${NC} GWS CLI:      $(command -v gws &>/dev/null && echo 'Pre-instalado ✓' || echo 'No instalado')"
 echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
 echo -e "${CYAN}║${NC} Tests totales: ${TESTS_TOTAL}"
 echo -e "${CYAN}║${NC} Pasaron:       ${GREEN}${TESTS_PASSED}${NC}"

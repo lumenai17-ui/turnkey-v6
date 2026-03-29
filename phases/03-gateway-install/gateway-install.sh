@@ -680,6 +680,17 @@ main() {
         log_warn "install-gws.sh no encontrado, saltando"
     fi
     
+    # Instalar VNC (x11vnc + noVNC) para visualización remota
+    local vnc_script="${SCRIPTS_DIR}/install-vnc.sh"
+    if [[ -f "$vnc_script" ]]; then
+        log_info "=== INSTALANDO VNC (x11vnc + noVNC) ==="
+        local vnc_args=()
+        [[ "$DRY_RUN" == "true" ]] && vnc_args+=("--dry-run")
+        bash "$vnc_script" "${vnc_args[@]}" || log_warn "VNC install falló (no bloqueante)"
+    else
+        log_warn "install-vnc.sh no encontrado, saltando"
+    fi
+    
     generate_report
     
     # Marcar como exitoso para evitar cleanup
