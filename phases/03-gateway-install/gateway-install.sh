@@ -655,6 +655,31 @@ main() {
     # Configurar gateway
     configure_gateway
     create_systemd_service
+    
+    # === PRODUCTION LAYER v6.3: Herramientas adicionales ===
+    
+    # Instalar Tandem Browser (headless)
+    local tandem_script="${SCRIPTS_DIR}/install-tandem.sh"
+    if [[ -f "$tandem_script" ]]; then
+        log_info "=== INSTALANDO TANDEM BROWSER ==="
+        local tandem_args=()
+        [[ "$DRY_RUN" == "true" ]] && tandem_args+=("--dry-run")
+        bash "$tandem_script" "${tandem_args[@]}" || log_warn "Tandem Browser install falló (no bloqueante)"
+    else
+        log_warn "install-tandem.sh no encontrado, saltando"
+    fi
+    
+    # Pre-instalar GWS CLI
+    local gws_script="${SCRIPTS_DIR}/install-gws.sh"
+    if [[ -f "$gws_script" ]]; then
+        log_info "=== PRE-INSTALANDO GWS CLI ==="
+        local gws_args=()
+        [[ "$DRY_RUN" == "true" ]] && gws_args+=("--dry-run")
+        bash "$gws_script" "${gws_args[@]}" || log_warn "GWS CLI install falló (no bloqueante)"
+    else
+        log_warn "install-gws.sh no encontrado, saltando"
+    fi
+    
     generate_report
     
     # Marcar como exitoso para evitar cleanup

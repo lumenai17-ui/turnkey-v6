@@ -321,6 +321,38 @@ else
     log_test_pass "No hay config para validar automatizaciones"
 fi
 
+# Test 9: Tandem Browser (new in v6.3)
+echo -e "\n  ${BOLD}Test 9: Tandem Browser${NC}"
+if [[ "$DRY_RUN" = "true" ]]; then
+    log_test_pass "[DRY-RUN] Tandem Browser check simulado"
+else
+    TANDEM_TOKEN=""
+    if [[ -f "$HOME/.tandem/api-token" ]]; then
+        TANDEM_TOKEN="$(cat "$HOME/.tandem/api-token")"
+    fi
+    if curl -s --max-time 5 -H "Authorization: Bearer ${TANDEM_TOKEN}" "http://127.0.0.1:8765/status" &>/dev/null; then
+        log_test_pass "Tandem Browser activo en puerto 8765"
+    else
+        if [[ -d "$HOME/.tandem/browser" ]]; then
+            log_test_fail "Tandem Browser instalado pero no responde"
+        else
+            log_test_fail "Tandem Browser no instalado"
+        fi
+    fi
+fi
+
+# Test 10: GWS CLI (new in v6.3)
+echo -e "\n  ${BOLD}Test 10: Google Workspace CLI${NC}"
+if command -v gws &>/dev/null; then
+    gws_ver=$(gws --version 2>/dev/null || echo "unknown")
+    log_test_pass "GWS CLI instalado: v${gws_ver}"
+    if [[ -f "$HOME/.openclaw/config/GWS-SETUP-GUIDE.md" ]]; then
+        log_test_pass "Guía de conexión GWS disponible"
+    fi
+else
+    log_test_fail "GWS CLI no instalado"
+fi
+
 # ==============================================================================
 # STEP 4: GENERATE ACTIVATION REPORT
 # ==============================================================================
